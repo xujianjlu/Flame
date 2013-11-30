@@ -3,7 +3,7 @@ Flame
 
 Construct tools based on Scons
 
-###Example:
+####Example:
 
   build -- debug model:
  
@@ -17,6 +17,6 @@ Construct tools based on Scons
  
     flame/make.sh t=test/main -c
 
-###TODO
+####TODO
 	1. enable opt model.
 	2. enable third party libs.
