@@ -23,7 +23,7 @@ PY_THRIFT_DIR = 'third_party/thrift/py/src/'
 
 PROTO_BIN = 'third_party/protobuf/bin/protoc'
 PROTO_OUT = 'proto-out'
-PROTO_INC = 'third_party/protobuf/include'
+PROTO_INC = 'third_party/protobuf/'
 PROTO_PY_INC = 'third_party/protobuf/python'
 
 STATIC_LIB_PATH = 'libs/'
