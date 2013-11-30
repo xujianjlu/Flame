@@ -1,5 +1,8 @@
-# Copyright 2010. All Rights Reserved.
 # Scons config for the flame build system
+
+import sys
+# add path for Mac os x
+sys.path.append('/usr/local/Cellar/scons/2.3.0/libexec/scons-local/')
 
 import os
 import socket
@@ -11,7 +14,7 @@ import Path
 import BuildManager
 import Util
 
-EnsureSConsVersion(1, 2)
+EnsureSConsVersion(2, 3)
 EnsurePythonVersion(2, 6)
 
 Util.EnsureBuildDir()

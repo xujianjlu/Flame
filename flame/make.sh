@@ -14,10 +14,8 @@ fi
 cd -P .  # go to real path if this is a symbol link.
 cd $base_dir
 
-echo $base_dir
-
 scons \
---site-dir=$base_dir/flame/site_scons \
+--site-dir=$base_dir/flame/builders \
 --f=$base_dir/flame/SConstruct \
 cur_dir=$original_dir \
 base_dir=$base_dir \
