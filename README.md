@@ -16,3 +16,7 @@ Construct tools based on Scons
   clean model:
  
     flame/make.sh t=test/main -c
+
+###TODO
+	1. enable opt model.
+	2. enable third party libs.
