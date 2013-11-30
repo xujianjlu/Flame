@@ -1,4 +1,4 @@
-cc_binary(name = 'main',
-          srcs = ['main.cc'],
+cc_binary(name = 'test_cpp',
+          srcs = ['test_cpp.cc'],
           deps = []
          )
