@@ -3,7 +3,6 @@
 
 import os.path
 
-ROOT = 'yr'
 BUILD_NAME = 'BUILD'
 BUILD_OUT = '.flame-out'
 LOCAL_BUILD_DIR = '/usr/local/build'
