@@ -1,0 +1,49 @@
+# Copyright 2010. All Rights Reserved.
+# Scons config for the flame build system
+
+import os
+import socket
+import SCons
+from datetime import datetime
+
+import Flags
+import Path
+import BuildManager
+import Util
+
+EnsureSConsVersion(1, 2)
+EnsurePythonVersion(2, 6)
+
+Util.EnsureBuildDir()
+
+base_env = Environment()
+Util.PrepareEnv(base_env)
+
+_build_strategy = ARGUMENTS.get('c', 'dbg')
+
+print('%s         %s UTC %s' %
+      (Util.highlight('Build at:', 1, False),
+       socket.gethostname(), datetime.utcnow()))
+print('%s       %s %s' %
+      (Util.highlight('Build with:', 1, False),
+       '-'.join((base_env['CXX'], base_env['CXXVERSION'])),
+       '-'.join((base_env['CC'], base_env['CCVERSION']))))
+(sysname, nodename, release, version, machine) = os.uname()
+print('%s   %s' %
+      (Util.highlight('Build platform:', 1, False),
+       '-'.join((sysname, release, machine))))
+print('%s   %s' %
+      (Util.highlight('Build strategy:', 1, False), _build_strategy))
+print('%s  %s' %
+      (Util.highlight('Build directory:', 1, False), Flags.BUILD_OUT))
+
+_build_target = ARGUMENTS.get('t')
+if _build_target == None:
+  Util.Abort('no target specified.')
+
+base_env.VariantDir(Path.GetOutputDir(), Path.GetBaseDir(), duplicate = 0)
+
+# user our parser to analysis the dependencies and build
+target = Path.GetLogicalPath(ARGUMENTS.get('cur_dir'), _build_target)
+build_manager = BuildManager.GetBuildManager(base_env)
+build_manager.Build(target)
