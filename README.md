@@ -7,15 +7,15 @@ Construct tools based on Scons
 
   build -- debug model:
 
-    flame/build.sh t=test/main [c=dbg]
+    flame/build.sh t=test/test_cpp [c=dbg]
 
   build -- opt model:
 
-    flame/build.sh t=test/main c=opt
+    flame/build.sh t=test/test_cpp c=opt
 
   clean built objects:
 
-    flame/build.sh t=test/main -c
+    flame/build.sh t=test/test_cpp -c
 
   build unittest and execute it:
 
