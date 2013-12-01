@@ -15,7 +15,7 @@ Construct tools based on Scons
 
   clean built objects:
 
-    flame/make.sh t=test/main -c
+    flame/build.sh t=test/main -c
 
   build unittest and execute it:
 
