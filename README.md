@@ -18,7 +18,9 @@ Construct tools based on Scons
     flame/make.sh t=test/main -c
 
   build unittest and execute it:
+
     flame/build.sh t=test/unittest_name test=unittest_name
+
 
 ####TODO
 	1. enable opt model.
