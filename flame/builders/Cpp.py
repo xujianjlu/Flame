@@ -1,25 +1,26 @@
-#!/usr/bin/env python2.6
+#!/usr/bin/env python
 
-
+# system lib
 import sys
 sys.path.append('flame/utils')
-
-from Access import AccessChecker
-from LanguageBuilder import LanguageBuilder
-from LanguageBuilder import RegisterObj
-from SCons.Script import ARGUMENTS
-from SCons.Script import Action
-from SCons.Script import Builder
-from datetime import datetime
-
 import commands
 import os
 import socket
+from datetime import datetime
 
+# scons lib
+from SCons.Script import ARGUMENTS
+from SCons.Script import Action
+from SCons.Script import Builder
+
+# self-defined lib
 import Flags
 import Path
 import Util
 import cpplint
+from Access import AccessChecker
+from LanguageBuilder import LanguageBuilder
+from LanguageBuilder import RegisterObj
 
 
 """Cpp build registerers"""
@@ -78,6 +79,7 @@ def CheckSpecialDependency(obj):
     elif d.endswith('_bison'):
       obj.has_bison_dep = True
 
+
 def GetCppInclude(obj):
   result = ['.', Path.GetOutputDir(), Path.GetGlobalDir()]
   if not hasattr(obj, 'has_proto_dep'):
@@ -89,7 +91,9 @@ def GetCppInclude(obj):
     result.append(Path.GetAbsPath('third_party/libevent'))
   if obj.has_proto_dep:
     result.append(Path.GetProtoOutPath())
-    result.append(Path.GetAbsPath(Flags.PROTO_INC))
+    # TODO(xujian): check this
+    #result.append(Path.GetAbsPath(Flags.PROTO_INC))
+  # TODO(xujian): check following language
   if obj.has_cuda_dep:
     result.append(Flags.CUDA_INC)
     result.append(Flags.CUDA_SDK_COMMON_INC)
@@ -110,7 +114,7 @@ class CppBuilder(LanguageBuilder):
     self._checked_dir = set()
     self._always_test = ARGUMENTS.get('always_test', 'on')
     self._build_mode = ARGUMENTS.get('c', 'dbg')
-    self._check_lib_dep = ARGUMENTS.get('check_dep', 'on')
+    # self._check_lib_dep = ARGUMENTS.get('check_dep', 'on')
     self._check_style = ARGUMENTS.get('check_cpp_style', 'on')
     self._test_suffix = 'passed'
     self._access_checker = AccessChecker()
@@ -163,8 +167,7 @@ class CppBuilder(LanguageBuilder):
         continue
       f = seg[len(seg)-1]
       # not check style for third party code
-      if (f.find('/third_party/') != -1 or
-          f.find('/infrastructure/firewood/scrib/') != -1):
+      if f.find('/third_party/') != -1:
         continue
       if f.endswith('.h') or f.endswith('.cc') or f.endswith('.cpp'):
         self._opend_files.add(f)
@@ -252,6 +255,7 @@ class CppBuilder(LanguageBuilder):
     else:
       assert False, 'wrong build strategy: %s' % self._build_mode
 
+
   def _GetSourcePath(self, sources):
     result = []
     for x in sources:
@@ -262,9 +266,11 @@ class CppBuilder(LanguageBuilder):
         result.append(p)
     return result
 
+
   def _GetLibPath(self, path):
     lib_name = 'lib' + os.path.basename(path) + '.a'
     return os.path.join(os.path.dirname(path), lib_name)
+
 
   def _GetLibName(self, name):
     try:
@@ -275,14 +281,17 @@ class CppBuilder(LanguageBuilder):
       self._lib_name_map[name] = lib_name
     return lib_name
 
+
   def _GetStaticLib(self, path, abort = True):
     p = os.path.join(Flags.STATIC_LIB_PATH, Path.GetRelativePath(path))
     return Path.GetAbsPath(self._GetLibPath(p), abort)
+
 
   def _GetLibNameForObj(self, obj):
     if obj.is_private_:
       return self._GetStaticLib(obj.name_)
     return self._GetLibName(obj.name_)
+
 
   def _GetFlags(self, obj, env):
     source = []
@@ -335,7 +344,8 @@ class CppBuilder(LanguageBuilder):
       path.append(Path.GetAbsPath('libs/third_party/libevent'))
     if obj.has_proto_dep:
       libs += ['protobuf']
-      path.append(Path.GetAbsPath('libs/third_party/protobuf'))
+      # xujian
+      #path.append(Path.GetAbsPath('libs/third_party/protobuf'))
 
     # for gtest
     if obj.build_type_ == 'cc_test':
@@ -355,6 +365,7 @@ class CppBuilder(LanguageBuilder):
       cuda_lib_list = env['CUDA_LIB'].split()
       source += cuda_lib_list
     return source, libs, path, link_flags
+
 
   def BuildObject(self, env, obj):
     self._GetOpenedFiles(obj.path_)
@@ -406,19 +417,7 @@ class CppBuilder(LanguageBuilder):
                                  CPPPATH = cpp_path,
                                  CCFLAGS = cc_flags,
                                  CXX = CXX_value)
-      if (not self._HasCopt(obj, 'disable_dep_check') and
-          self._check_lib_dep == 'on'):
-        # add a dummy binary for dependency check,
-        # to avoid missing dependency declaration in the cc_library
-        dummy_target = target + '_dep_check_dummy'
-        link_flags = link_flags.replace(self._pprof_link_flags, '')
-        env.Program(target = dummy_target,
-                    source = self._main_lib + lib_sources,
-                    LIBS = libs,
-                    LIBPATH = libpath,
-                    LINKFLAGS = link_flags)
-        env.Depends(dummy_target,
-                    self._GetLibName(obj.name_))
+
 
   def Finish(self, env):
     self._StyleCheck()

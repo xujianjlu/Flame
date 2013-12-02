@@ -65,7 +65,8 @@ class ProtoBuilder(LanguageBuilder):
             'ProtoPyLibrary' : proto_py_builder}
 
   def GenerateEnv(self, env):
-    env['PROTO']       = Path.GetAbsPath(Flags.PROTO_BIN)
+    #env['PROTO']       = Path.GetAbsPath(Flags.PROTO_BIN)
+    env['PROTO']       = Flags.PROTO_BIN
     env['PROTOCFLAGS'] = SCons.Util.CLVar('')
     if os.path.exists(Path.GetGlobalDir()):
       env['PROTOINCLUDE'] = ('-I%s -I%s -I%s' %

@@ -21,7 +21,8 @@ CPP_PPROF_LIB_PATH = 'libs/third_party/pprof/libtcmalloc_and_profiler.a'
 # scons out folder at deploy time
 PY_THRIFT_DIR = 'third_party/thrift/py/src/'
 
-PROTO_BIN = 'third_party/protobuf/bin/protoc'
+#PROTO_BIN = 'third_party/protobuf/bin/protoc'
+PROTO_BIN = '/usr/local/bin/protoc'
 PROTO_OUT = 'proto-out'
 PROTO_INC = 'third_party/protobuf/'
 PROTO_PY_INC = 'third_party/protobuf/python'
