@@ -21,7 +21,9 @@ Construct tools based on Scons
 
     flame/build.sh t=test/unittest_name test=unittest_name
 
+####Progress
+	1. enable opt model.
 
 ####TODO
-	1. enable opt model.
-	2. enable third party libs.
+	1. enable third party libs.
+  2. enable execute built unittest binary automic.
