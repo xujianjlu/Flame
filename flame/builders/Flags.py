@@ -27,9 +27,9 @@ PROTO_OUT = 'proto-out'
 PROTO_INC = 'third_party/protobuf/'
 PROTO_PY_INC = 'third_party/protobuf/python'
 
-STATIC_LIB_PATH = 'libs/'
+STATIC_LIB_PATH = 'third_party/'
 STATIC_LIB_PREFIX = '//%s' % STATIC_LIB_PATH
-BUILD_FILE_PATH = 'libs/flame/'
+BUILD_FILE_PATH = 'third_party/'
 BUILD_FILE_PREFIX = '//%s' % BUILD_FILE_PATH
 
 THRIFT_BIN = 'third_party/thrift/bin/thrift'
@@ -50,10 +50,10 @@ BISON_DIR = 'third_party/bison'
 BISON_BIN = 'third_party/bison/bin/bison'
 BISON_OUT = 'bison-out'
 
-PYINSTALLER_CONFIURE = '//third_party/pyinstaller/Configure.py'
+PYINSTALLER_CONFIURE = '//third_party/pyinstaller/configure.py'
 PYINSTALLER_CONF_FILE = 'third_party/pyinstaller/config.dat'
-PYINSTALLER_MAKER = 'third_party/pyinstaller/Makespec.py'
-PYINSTALLER_BUILDER = 'third_party/pyinstaller/Build.py'
+PYINSTALLER_MAKER = 'third_party/pyinstaller/makespec.py'
+PYINSTALLER_BUILDER = 'third_party/pyinstaller/build.py'
 
 SBT_BIN_PATH = 'flame/sbt/sbtnocolors'
 SBT_CLEAN_ACTION = '"set logLevel := Level.Error" clean-files'

@@ -24,7 +24,7 @@ def GetGlobalDir():
 
 
 def GetOutputDir():
-  """Get '.ymake-out/opt' or '.ymake-out/dbg'"""
+  """Get '.flame-out/opt' or '.flame-out/dbg'"""
   strategy = ARGUMENTS.get('c', 'dbg')
   return os.path.join(GetBaseDir(), Flags.BUILD_OUT, strategy)
 
@@ -41,9 +41,9 @@ def IsInDir(file_path, dir_path):
   return file_path.startswith(dir_path)
 
 
-def GetLogicalPath(cur_dir, path, adj_yb = False):
+def GetLogicalPath(cur_dir, path, adj_build = False):
   """('~/$ROOT/base', 'foo') --> '//base:foo'
-  @adj_yb: if to adjust the path for ybuild file.
+  @adj_build: if to adjust the path for build file.
   """
   if path.startswith('//'):
     return path
@@ -63,7 +63,7 @@ def GetLogicalPath(cur_dir, path, adj_yb = False):
     result = '//%s' % os.path.relpath(result, GetGlobalDir())
   else:
     Util.Abort('invalid path: (%s, %s)' % (cur_dir, path))
-  if adj_yb and result.startswith(Flags.BUILD_FILE_PREFIX):
+  if adj_build and result.startswith(Flags.BUILD_FILE_PREFIX):
     result = result.replace(Flags.BUILD_FILE_PATH, '', 1)
   return result
 
@@ -181,8 +181,9 @@ def GetModuleResultsPath(obj):
 def GetBuiltPath(path):
   """Given a logical path, give out its building path"""
   assert path.startswith('//')
-  if path.startswith(Flags.BUILD_FILE_PREFIX):
-    path = path.replace(Flags.BUILD_FILE_PREFIX, Flags.STATIC_LIB_PREFIX)
+  # TODO(xujian): hard code the static libs path to 'third_party/'.
+  # if path.startswith(Flags.BUILD_FILE_PREFIX):
+  #   path = path.replace(Flags.BUILD_FILE_PREFIX, Flags.STATIC_LIB_PREFIX)
   return os.path.join(GetOutputDir(), path[2:]).replace(':', '/')
 
 

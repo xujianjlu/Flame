@@ -11,6 +11,7 @@ DEFINE_uint64(uint64_flags, 123456, "uint64_flags");
 DEFINE_double(double_flags, 3.1415926, "double_flags");
 
 int main(int argc, char **argv) {
+  base::ParseCommandLineFlags(&argc, &argv, true);
   std::cout << "bool_flags: " << FLAGS_bool_flags << std::endl;
   std::cout << "str_flags: " << FLAGS_str_flags << std::endl;
   std::cout << "int32_flags: " << FLAGS_int32_flags << std::endl;

@@ -82,6 +82,11 @@ def CheckSpecialDependency(obj):
 
 def GetCppInclude(obj):
   result = ['.', Path.GetOutputDir(), Path.GetGlobalDir()]
+  # add third_party include to cpp include path.
+  for dep in obj.depends_:
+    if dep.startswith('//third_party/libs/'):
+      result.append('./third_party/')
+      break
   if not hasattr(obj, 'has_proto_dep'):
     CheckSpecialDependency(obj)
   if obj.has_thrift_dep:
@@ -167,7 +172,8 @@ class CppBuilder(LanguageBuilder):
         continue
       f = seg[len(seg)-1]
       # not check style for third party code
-      if f.find('/third_party/') != -1:
+      # (xujian): not check style for base code.
+      if f.startswith('third_party/') != -1 or f.startswith('base/') != -1:
         continue
       if f.endswith('.h') or f.endswith('.cc') or f.endswith('.cpp'):
         self._opend_files.add(f)
@@ -229,22 +235,20 @@ class CppBuilder(LanguageBuilder):
 
     cc_flags = ('-m64 -fPIC -Wall -Werror -Wwrite-strings -Wno-sign-compare -g '
                 '-Wuninitialized -Wno-error=deprecated-declarations ')
-    # xujian: this is used to forbiden xcode warning.
-    cc_flags += (' -Qunused-arguments ')
     # these is just for using proftools
     cc_flags += ('-fno-builtin-malloc -fno-builtin-free -fno-builtin-realloc '
                  '-fno-builtin-calloc -fno-builtin-cfree -fno-builtin-memalign '
                  '-fno-builtin-posix_memalign -fno-builtin-valloc '
                  '-fno-builtin-pvalloc -fno-omit-frame-pointer ')
-    link_flags = ['-pthread -Qunused-arguments ']
+    link_flags = ['-pthread']
     if self._GetGccVersion() >= '4.5':  # only available after gcc4.5
-      link_flags.append('-static-libstdc++')
+      link_flags.append(' -static-libstdc++  ')
     else:
       cc_flags += '-fno-strict-aliasing '
     if self._build_mode != 'gprof':
         pass
     else:
-      link_flags.append('-pg')
+      link_flags.append(' -pg ')
     env.Replace(LINKFLAGS = ' '.join(link_flags))
     if self._build_mode == 'dbg':
       env.Replace(CCFLAGS = ' '.join([cc_flags]))
@@ -296,8 +300,7 @@ class CppBuilder(LanguageBuilder):
   def _GetFlags(self, obj, env):
     source = []
     always_link_libs = ''
-    #libs = ['dl', 'rt', 'crypt']
-    libs = ['dl']
+    libs = ['dl', 'rt', 'crypt']
     if 'libs' in obj.option_:
       libs += obj.option_['libs']
     path = []

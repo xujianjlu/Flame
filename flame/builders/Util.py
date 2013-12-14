@@ -1,8 +1,6 @@
 #!/usr/bin/python2.6
 
 import sys
-# add path for Mac os x
-sys.path.append('/usr/local/Cellar/scons/2.3.0/libexec/scons-local/')
 sys.path.append('flame/site_scons/')
 
 from SCons.Script import ARGUMENTS

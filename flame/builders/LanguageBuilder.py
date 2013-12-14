@@ -45,14 +45,14 @@ def RegisterObj(name = None, srcs = [], deps = [],
   obj.path_ = os.path.join(cur_dir, name)
   obj.build_type_ = build_type
   for src in srcs:
-    obj.sources_.append(Path.GetLogicalPath(cur_dir, src, adj_yb = True))
+    obj.sources_.append(Path.GetLogicalPath(cur_dir, src, adj_build = True))
   obj.option_ = option
   # handle dependencies
   for dep in deps:
     if not dep.startswith('//') and not dep.startswith(':'):
       Util.Abort('Invalid dep %s(%s), need starts with "//" or ":"' %
                  (name, dep))
-    dep_path = Path.GetLogicalPath(cur_dir, dep, adj_yb = True)
+    dep_path = Path.GetLogicalPath(cur_dir, dep, adj_build = True)
     obj.raw_depends_.append(dep_path)
     if dep_path not in obj.depends_:
       obj.depends_.append(dep_path)
