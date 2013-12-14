@@ -29,6 +29,7 @@ cc_library(name = 'flags',
                    'flags_completions.cc',
                    'logging.cc',
                   ],
+           cflags = ['-fno-strict-aliasing']
           )
 
 cc_library(name = 'base',
@@ -43,7 +44,6 @@ cc_library(name = 'base',
                 'fnv.cc',
                 'lock.cc',
                 'lock_impl_posix.cc',
-                'logging.cc',
                 'md5.cc',
                 'platform_thread_posix.cc',
                 'safe_strerror_posix.cc',
@@ -63,13 +63,11 @@ cc_library(name = 'base',
                 'third_party/symbolize/symbolize.cc',
                 'third_party/symbolize/demangle.cc',
                 'third_party/dynamic_annotations/dynamic_annotations.c',
+                'third_party/modp_b64/modp_b64.cc',
                 'utf_string_conversion_utils.cc',
                 'utf_string_conversions.cc',
-                'flags.cc',
-                'flags_reporting.cc',
-                'flags_completions.cc',
-                'logging.cc',
                 ],
-           deps = [
+           deps = [':flags'
                   ],
+           copt = ['always_link']
           )
