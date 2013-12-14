@@ -28,4 +28,4 @@ Construct tools based on Scons.
 
 ####Todo
 	1. enable third party libs.
-    	2. enable execute built unittest binary automatic.
+	2. enable execute built unittest binary automatic.
