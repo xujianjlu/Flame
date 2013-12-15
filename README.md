@@ -1,7 +1,7 @@
 Flame
 =====
 
-Construct tools based on Scons
+Construct tools based on Scons.
 
 ####Example:
 
@@ -23,7 +23,9 @@ Construct tools based on Scons
 
 ####Progress
 	1. enable opt model.
+	2. enable glog and gflags.
+	3. import base lib.
 
-####TODO
+####Todo
 	1. enable third party libs.
-  2. enable execute built unittest binary automic.
+	2. enable execute built unittest binary automatic.
