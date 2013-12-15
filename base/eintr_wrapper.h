@@ -4,15 +4,11 @@
 
 // This provides a wrapper around system calls which may be interrupted by a
 // signal and return EINTR. See man 7 signal.
-//
-// On Windows, this wrapper macro does nothing.
+
+// see http://baike.baidu.com/view/3507223.htm
 
 #ifndef BASE_EINTR_WRAPPER_H_
 #define BASE_EINTR_WRAPPER_H_
-
-#include "build_config.h"
-
-#if defined(OS_POSIX)
 
 #include <errno.h>
 
@@ -23,11 +19,5 @@
   } while (__eintr_result__ == -1 && errno == EINTR); \
   __eintr_result__;\
 })
-
-#else
-
-#define HANDLE_EINTR(x) x
-
-#endif  // OS_POSIX
 
 #endif  // BASE_EINTR_WRAPPER_H_

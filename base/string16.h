@@ -30,6 +30,7 @@
 #include <string>
 
 #include "base/basictypes.h"
+#include "base/port.h"
 
 #if defined(WCHAR_T_IS_UTF16)
 

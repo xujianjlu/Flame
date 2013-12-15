@@ -43,7 +43,7 @@ void AtExitManager::RegisterCallback(AtExitCallbackType func, void* param) {
 
   DCHECK(func);
 
-  AutoLock lock(g_top_manager->lock_);
+  MutexLock lock(&g_top_manager->mu_);
   g_top_manager->stack_.push(CallbackAndParam(func, param));
 }
 
@@ -54,8 +54,7 @@ void AtExitManager::ProcessCallbacksNow() {
     return;
   }
 
-  AutoLock lock(g_top_manager->lock_);
-
+  MutexLock lock(&g_top_manager->mu_);
   while (!g_top_manager->stack_.empty()) {
     CallbackAndParam callback_and_param = g_top_manager->stack_.top();
     g_top_manager->stack_.pop();

@@ -28,22 +28,16 @@
 #ifndef BASE_ATOMICOPS_H_
 #define BASE_ATOMICOPS_H_
 
-#include "base/basictypes.h"
-#include "base/port.h"
+#include "./basictypes.h"
+#include "./port.h"
 
 namespace base {
 namespace subtle {
 
-// Bug 1308991.  We need this for /Wp64, to mark it safe for AtomicWord casting.
-#ifndef OS_WIN
-#define __w64
-#endif
-typedef __w64 int32 Atomic32;
-#ifdef ARCH_CPU_64_BITS
+typedef int32 Atomic32;
 // We need to be able to go between Atomic64 and AtomicWord implicitly.  This
 // means Atomic64 and AtomicWord should be the same type on 64-bit.
 typedef intptr_t Atomic64;
-#endif
 
 // Use AtomicWord for a machine-sized pointer.  It will use the Atomic32 or
 // Atomic64 routines below, depending on your architecture.
@@ -100,7 +94,6 @@ Atomic32 Acquire_Load(volatile const Atomic32* ptr);
 Atomic32 Release_Load(volatile const Atomic32* ptr);
 
 // 64-bit atomic operations (only available on 64-bit processors).
-#ifdef ARCH_CPU_64_BITS
 Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
                                   Atomic64 old_value,
                                   Atomic64 new_value);
@@ -120,22 +113,11 @@ void Release_Store(volatile Atomic64* ptr, Atomic64 value);
 Atomic64 NoBarrier_Load(volatile const Atomic64* ptr);
 Atomic64 Acquire_Load(volatile const Atomic64* ptr);
 Atomic64 Release_Load(volatile const Atomic64* ptr);
-#endif  // ARCH_CPU_64_BITS
 
 }  // namespace base::subtle
 }  // namespace base
 
 // Include our platform specific implementation.
-#if defined(OS_WIN) && defined(COMPILER_MSVC) && defined(ARCH_CPU_X86_FAMILY)
-#include "base/atomicops_internals_x86_msvc.h"
-#elif defined(OS_MACOSX) && defined(ARCH_CPU_X86_FAMILY)
-#include "base/atomicops_internals_x86_macosx.h"
-#elif defined(COMPILER_GCC) && defined(ARCH_CPU_X86_FAMILY)
-#include "base/atomicops_internals_x86_gcc.h"
-#elif defined(COMPILER_GCC) && defined(ARCH_CPU_ARM_FAMILY)
-#include "base/atomicops_internals_arm_gcc.h"
-#else
-#error "Atomic operations are not supported on your platform"
-#endif
+#include "./atomicops_internals_x86_gcc.h"
 
 #endif  // BASE_ATOMICOPS_H_

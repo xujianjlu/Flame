@@ -19,45 +19,53 @@
 // These classes are represented as only a 64-bit value, so they can be
 // efficiently passed by value.
 
-#ifndef BASE_TIME_H_
-#define BASE_TIME_H_
+#ifndef BASE_PUBLIC_TIME_H_
+#define BASE_PUBLIC_TIME_H_
 
 #include <time.h>
+#include <sys/time.h>
+#include <string>
 
 #include "base/basictypes.h"
 
-#if defined(OS_POSIX)
-// For struct timeval.
-#include <sys/time.h>
-#endif
-
-#if defined(OS_WIN)
-// For FILETIME in FromFileTime, until it moves to a new converter class.
-// See TODO(iyengar) below.
-#include <windows.h>
-#endif
-
 namespace base {
 
-inline int GetTimeInMs() {
+// see http://baike.baidu.com/view/2345439.htm
+//     http://baike.baidu.com/view/152037.htm
+//     http://baike.baidu.com/view/251176.htm
+//     tv_usec is microsecond
+// millisecond
+inline int64 GetTimeInMs() {
   struct timeval now;
   gettimeofday(&now, NULL);
-  return (int)(now.tv_sec * 1000 + now.tv_usec / 1000);
+  return static_cast<int64>(now.tv_sec * 1000 + now.tv_usec / 1000);
 }
 
-/// Copy tv to ts adding offset in milliseconds.
+// microsecond
+inline int64 GetTimeInUsec() {
+  struct timeval now;
+  gettimeofday(&now, NULL);
+  return static_cast<int64>(now.tv_sec * 1000 * 1000 + now.tv_usec);
+}
+
+// Copy tv to ts adding offset in milliseconds.
+// see http://hi.baidu.com/jiangyangw3r/item/dfc72fdcfcce81ee3dc2cb9c
 inline void timeval2timespec(timeval *const tv,
                              timespec *ts,
-                             int64_t offset_milli) {
-  const int64_t ten_9 = 1000000000LL;
-  const int64_t ten_6 = 1000000LL;
-  const int64_t ten_3 = 1000LL;
-  int64_t now_nsec = (int64_t)tv->tv_sec * ten_9;
-  now_nsec += (int64_t)tv->tv_usec * ten_3;
-  int64_t then_nsec = now_nsec + offset_milli * ten_6;
+                             int64 offset_milli) {
+  const int64 ten_9 = 1000000000LL;
+  const int64 ten_6 = 1000000LL;
+  const int64 ten_3 = 1000LL;
+  int64 now_nsec = static_cast<int64>(tv->tv_sec) * ten_9;
+  now_nsec += static_cast<int64>(tv->tv_usec) * ten_3;
+  int64 then_nsec = now_nsec + offset_milli * ten_6;
   ts->tv_sec  = then_nsec / ten_9;
   ts->tv_nsec = then_nsec % ten_9;
 }
+
+
+// Sleeps for the specified duration (in milliseconds)
+void MilliSleep(int duration_ms);
 
 class Time;
 class TimeTicks;
@@ -65,7 +73,7 @@ class TimeTicks;
 // This unit test does a lot of manual time manipulation.
 class PageLoadTrackerUnitTest;
 
-// TimeDelta ------------------------------------------------------------------
+// TimeDelta
 
 class TimeDelta {
  public:
@@ -87,9 +95,7 @@ class TimeDelta {
     return delta_;
   }
 
-#if defined(OS_POSIX)
   struct timespec ToTimeSpec() const;
-#endif
 
   // Returns the time delta in some unit. The F versions return a floating
   // point value, the "regular" versions return a rounded-down value.
@@ -133,45 +139,45 @@ class TimeDelta {
 
   // Computations with ints, note that we only allow multiplicative operations
   // with ints, and additive operations with other deltas.
-  TimeDelta operator*(int64 a) const {
+  TimeDelta operator * (int64 a) const {
     return TimeDelta(delta_ * a);
   }
-  TimeDelta operator/(int64 a) const {
+  TimeDelta operator / (int64 a) const {
     return TimeDelta(delta_ / a);
   }
-  TimeDelta& operator*=(int64 a) {
+  TimeDelta& operator *= (int64 a) {
     delta_ *= a;
     return *this;
   }
-  TimeDelta& operator/=(int64 a) {
+  TimeDelta& operator /= (int64 a) {
     delta_ /= a;
     return *this;
   }
-  int64 operator/(TimeDelta a) const {
+  int64 operator / (TimeDelta a) const {
     return delta_ / a.delta_;
   }
 
   // Defined below because it depends on the definition of the other classes.
-  Time operator+(Time t) const;
-  TimeTicks operator+(TimeTicks t) const;
+  Time operator + (Time t) const;
+  TimeTicks operator + (TimeTicks t) const;
 
   // Comparison operators.
-  bool operator==(TimeDelta other) const {
+  bool operator == (TimeDelta other) const {
     return delta_ == other.delta_;
   }
-  bool operator!=(TimeDelta other) const {
+  bool operator != (TimeDelta other) const {
     return delta_ != other.delta_;
   }
-  bool operator<(TimeDelta other) const {
+  bool operator < (TimeDelta other) const {
     return delta_ < other.delta_;
   }
-  bool operator<=(TimeDelta other) const {
+  bool operator <= (TimeDelta other) const {
     return delta_ <= other.delta_;
   }
-  bool operator>(TimeDelta other) const {
+  bool operator > (TimeDelta other) const {
     return delta_ > other.delta_;
   }
-  bool operator>=(TimeDelta other) const {
+  bool operator >= (TimeDelta other) const {
     return delta_ >= other.delta_;
   }
 
@@ -183,18 +189,17 @@ class TimeDelta {
   // Constructs a delta given the duration in microseconds. This is private
   // to avoid confusion by callers with an integer constructor. Use
   // FromSeconds, FromMilliseconds, etc. instead.
-  explicit TimeDelta(int64 delta_us) : delta_(delta_us) {
-  }
+  explicit TimeDelta(int64 delta_us) : delta_(delta_us) {}
 
   // Delta in microseconds.
   int64 delta_;
 };
 
-inline TimeDelta operator*(int64 a, TimeDelta td) {
+inline TimeDelta operator * (int64 a, TimeDelta td) {
   return TimeDelta(a * td.delta_);
 }
 
-// Time -----------------------------------------------------------------------
+// Time
 
 // Represents a wall clock time.
 class Time {
@@ -211,14 +216,12 @@ class Time {
   static const int64 kNanosecondsPerSecond = kNanosecondsPerMicrosecond *
                                              kMicrosecondsPerSecond;
 
-#if !defined(OS_WIN)
   // On Mac & Linux, this value is the delta from the Windows epoch of 1601 to
   // the Posix delta of 1970. This is used for migrating between the old
   // 1970-based epochs to the new 1601-based ones. It should be removed from
   // this global header and put in the platform-specific ones when we remove the
   // migration code.
   static const int64 kWindowsEpochDeltaMicroseconds;
-#endif
 
   // Represents an exploded time that can be formatted nicely. This is kind of
   // like the Win32 SYSTEMTIME structure or the Unix "struct tm" with a few
@@ -266,18 +269,7 @@ class Time {
   static Time FromDoubleT(double dt);
   double ToDoubleT() const;
 
-#if defined(OS_POSIX)
   struct timeval ToTimeVal() const;
-#endif
-
-#if defined(OS_WIN)
-  static Time FromFileTime(FILETIME ft);
-  FILETIME ToFileTime() const;
-
-  // Enable or disable Windows high resolution timer. For more details
-  // see comments in time_win.cc. Returns true on success.
-  static bool UseHighResolutionTimer(bool use);
-#endif
 
   // Converts an exploded structure representing either the local time or UTC
   // into a Time class.
@@ -302,7 +294,7 @@ class Time {
   // in the input string, we assume local time.
   // TODO(iyengar) Move the FromString/FromTimeT/ToTimeT/FromFileTime to
   // a new time converter class.
-  static bool FromString(const wchar_t* time_string, Time* parsed_time);
+  static bool FromString(const char* time_string, Time* parsed_time);
 
   // For serializing, use FromInternalValue to reconstitute. Please don't use
   // this and do arithmetic on it, as it is more error prone than using the
@@ -310,6 +302,10 @@ class Time {
   int64 ToInternalValue() const {
     return us_;
   }
+
+  void ToUTCString(std::string *time_str) const;
+
+  void ToLocalDateString(std::string *time_str) const;
 
   // Fills the given exploded structure with either the local time or UTC from
   // this time structure (containing UTC).
@@ -430,7 +426,7 @@ inline TimeDelta TimeDelta::FromMicroseconds(int64 us) {
   return TimeDelta(us);
 }
 
-// TimeTicks ------------------------------------------------------------------
+// TimeTicks
 
 class TimeTicks {
  public:
@@ -512,16 +508,10 @@ class TimeTicks {
 
   // Please use Now() to create a new object. This is for internal use
   // and testing. Ticks is in microseconds.
-  explicit TimeTicks(int64 ticks) : ticks_(ticks) {
-  }
+  explicit TimeTicks(int64 ticks) : ticks_(ticks) {}
 
   // Tick count in microseconds.
   int64 ticks_;
-
-#if defined(OS_WIN)
-  typedef DWORD (*TickFunctionType)(void);
-  static TickFunctionType SetMockTickFunction(TickFunctionType ticker);
-#endif
 };
 
 inline TimeTicks TimeDelta::operator+(TimeTicks t) const {
@@ -530,4 +520,4 @@ inline TimeTicks TimeDelta::operator+(TimeTicks t) const {
 
 }  // namespace base
 
-#endif  // BASE_TIME_H_
+#endif  // BASE_PUBLIC_TIME_H_

@@ -19,21 +19,11 @@
 // Inline cpuid instruction.  In PIC compilations, %ebx contains the address
 // of the global offset table.  To avoid breaking such executables, this code
 // must preserve that register's value across cpuid instructions.
-#if defined(__i386__)
-#define cpuid(a, b, c, d, inp) \
-  asm ("mov %%ebx, %%edi\n"    \
-       "cpuid\n"               \
-       "xchg %%edi, %%ebx\n"   \
-       : "=a" (a), "=D" (b), "=c" (c), "=d" (d) : "a" (inp))
-#elif defined (__x86_64__)
 #define cpuid(a, b, c, d, inp) \
   asm ("mov %%rbx, %%rdi\n"    \
        "cpuid\n"               \
        "xchg %%rdi, %%rbx\n"   \
        : "=a" (a), "=D" (b), "=c" (c), "=d" (d) : "a" (inp))
-#endif
-
-#if defined(cpuid)        // initialize the struct only on x86
 
 // Set the flags so that code will run correctly and conservatively, so even
 // if we haven't been initialized yet, we're probably single threaded, and our
@@ -98,7 +88,5 @@ class AtomicOpsx86Initializer {
 AtomicOpsx86Initializer g_initer;
 
 }  // namespace
-
-#endif  // if x86
 
 #endif  // ifdef BASE_ATOMICOPS_INTERNALS_X86_GCC_H_

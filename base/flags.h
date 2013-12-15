@@ -75,7 +75,7 @@
 #include <string>
 #include <vector>
 
-#include "base/basictypes.h"
+#include "./basictypes.h"
 
 // We care a lot about number of bits things take up.  Unfortunately,
 // systems define their bit-specific ints in a lot of different ways.
@@ -83,9 +83,9 @@
 // Note: these commands below may look like "#if 1" or "#if 0", but
 // that's because they were constructed that way at ./configure time.
 // Look at gflags.h.in to see how they're calculated (based on your config).
-#include <stdint.h>             // the normal place uint16_t is defined
-#include <sys/types.h>          // the normal place u_int16_t is defined
-#include <inttypes.h>           // a third place for uint16_t or u_int16_t
+#include <stdint.h>             // the normal place uint16_t is defined  // NOLINT
+#include <sys/types.h>          // the normal place u_int16_t is defined  // NOLINT
+#include <inttypes.h>           // a third place for uint16_t or u_int16_t  // NOLINT
 
 namespace base {
 
@@ -127,10 +127,13 @@ bool RegisterFlagValidator(const uint64* flag,
                            bool (*validate_fn)(const char*, uint64));
 bool RegisterFlagValidator(const double* flag,
                            bool (*validate_fn)(const char*, double));
-bool RegisterFlagValidator(const std::string* flag,
-                           bool (*validate_fn)(const char*, const std::string&));
+bool RegisterFlagValidator(
+    const std::string* flag,
+    bool (*validate_fn)(const char*, const std::string&));
 
+bool HasCommandLineParsed();
 
+std::string GetVersionInfo();
 // --------------------------------------------------------------------
 // These methods are the best way to get access to info about the
 // list of commandline flags.  Note that these routines are pretty slow.
@@ -225,8 +228,8 @@ enum FlagSettingMode {
 
 // SetCommandLineOption uses set_mode == SET_FLAGS_VALUE (the common case)
 extern std::string SetCommandLineOption(const char* name, const char* value);
-extern std::string SetCommandLineOptionWithMode(const char* name, const char* value,
-                                                FlagSettingMode set_mode);
+extern std::string SetCommandLineOptionWithMode(
+    const char* name, const char* value, FlagSettingMode set_mode);
 
 
 // --------------------------------------------------------------------
@@ -263,8 +266,8 @@ class FlagSaver {
   class FlagSaverImpl* impl_;   // we use pimpl here to keep API steady
 
   FlagSaver(const FlagSaver&);  // no copying!
-  void operator=(const FlagSaver&);
-} __attribute__ ((unused));
+  void operator = (const FlagSaver&);
+} __attribute__((unused));
 
 // --------------------------------------------------------------------
 // Some deprecated or hopefully-soon-to-be-deprecated functions.
@@ -274,14 +277,17 @@ extern std::string CommandlineFlagsIntoString();
 // Usually where this is used, a FlagSaver should be used instead.
 extern bool ReadFlagsFromString(const std::string& flagfilecontents,
                                 const char* prog_name,
-                                bool errors_are_fatal); // uses SET_FLAGS_VALUE
+                                bool errors_are_fatal);  // uses SET_FLAGS_VALUE
 
 // These let you manually implement --flagfile functionality.
 // DEPRECATED.
-extern bool AppendFlagsIntoFile(const std::string& filename, const char* prog_name);
+extern bool AppendFlagsIntoFile(
+    const std::string& filename, const char* prog_name);
 extern bool SaveCommandFlags();  // actually defined in google.cc !
-extern bool ReadFromFlagsFile(const std::string& filename, const char* prog_name,
-                              bool errors_are_fatal);   // uses SET_FLAGS_VALUE
+extern bool ReadFromFlagsFile(
+    const std::string& filename,
+    const char* prog_name,
+    bool errors_are_fatal);   // uses SET_FLAGS_VALUE
 
 
 // --------------------------------------------------------------------
@@ -336,7 +342,9 @@ extern uint32 ParseCommandLineNonHelpFlags(int *argc, char*** argv,
 // This is actually defined in commandlineflags_reporting.cc.
 // This function is misnamed (it also handles --version, etc.), but
 // it's too late to change that now. :-(
-extern void HandleCommandLineHelpFlags();   // in commandlineflags_reporting.cc
+extern void HandleCommandLineHelpFlags();   // in flags_reporting.cc
+
+extern std::string GetVersionInfo();  // in flags_reporting.cc
 
 // Allow command line reparsing.  Disables the error normally
 // generated when an unknown flag is found, since it may be found in a
@@ -405,7 +413,6 @@ extern bool FlagsTypeWarn(const char *name);
 // somewhat, and may also be useful for security reasons.
 
 extern const char kStrippedFlagHelp[];
-
 }
 
 #ifndef SWIG  // In swig, ignore the main flag declarations
@@ -456,7 +463,7 @@ extern const char kStrippedFlagHelp[];
 namespace fLB {
 struct CompileAssert {};
 typedef CompileAssert expected_sizeof_double_neq_sizeof_bool[
-                      (sizeof(double) != sizeof(bool)) ? 1 : -1];
+                      (sizeof(double) != sizeof(bool)) ? 1 : -1];  // NOLINT
 template<typename From> double IsBoolFlag(const From& from);
 bool IsBoolFlag(bool from);
 }  // namespace fLB
@@ -464,22 +471,22 @@ bool IsBoolFlag(bool from);
 #define DECLARE_bool(name)          DECLARE_VARIABLE(bool, B, name)
 #define DEFINE_bool(name, val, txt)                                       \
   namespace fLB {                                                         \
-    typedef CompileAssert FLAG_##name##_value_is_not_a_bool[              \
+    typedef ::fLB::CompileAssert FLAG_##name##_value_is_not_a_bool[       \
             (sizeof(::fLB::IsBoolFlag(val)) != sizeof(double)) ? 1 : -1]; \
   }                                                                       \
   DEFINE_VARIABLE(bool, B, name, val, txt)
 
 #define DECLARE_int32(name)         DECLARE_VARIABLE(int32, I, name)
-#define DEFINE_int32(name,val,txt)  DEFINE_VARIABLE(int32, I, name, val, txt)
+#define DEFINE_int32(name, val, txt)  DEFINE_VARIABLE(int32, I, name, val, txt)
 
 #define DECLARE_int64(name)         DECLARE_VARIABLE(int64, I64, name)
-#define DEFINE_int64(name,val,txt)  DEFINE_VARIABLE(int64, I64, name, val, txt)
+#define DEFINE_int64(name, val, txt)  DEFINE_VARIABLE(int64, I64, name, val, txt)  // NOLINT
 
 #define DECLARE_uint64(name)        DECLARE_VARIABLE(uint64, U64, name)
-#define DEFINE_uint64(name,val,txt) DEFINE_VARIABLE(uint64, U64, name, val, txt)
+#define DEFINE_uint64(name, val, txt) DEFINE_VARIABLE(uint64, U64, name, val, txt)  // NOLINT
 
 #define DECLARE_double(name)          DECLARE_VARIABLE(double, D, name)
-#define DEFINE_double(name, val, txt) DEFINE_VARIABLE(double, D, name, val, txt)
+#define DEFINE_double(name, val, txt) DEFINE_VARIABLE(double, D, name, val, txt)  // NOLINT
 
 // Strings are trickier, because they're not a POD, so we can't
 // construct them at static-initialization time (instead they get
@@ -487,8 +494,8 @@ bool IsBoolFlag(bool from);
 // try to avoid crashes in that case, we use a char buffer to store
 // the string, which we can static-initialize, and then placement-new
 // into it later.  It's not perfect, but the best we can do.
-#define DECLARE_string(name)  namespace fLS { extern std::string& FLAGS_##name; } \
-                              using fLS::FLAGS_##name
+#define DECLARE_string(name)  \
+  namespace fLS { extern std::string& FLAGS_##name; } using fLS::FLAGS_##name
 
 // We need to define a var named FLAGS_no##name so people don't define
 // --string and --nostring.  And we need a temporary place to put val
@@ -497,18 +504,19 @@ bool IsBoolFlag(bool from);
 // The weird 'using' + 'extern' inside the fLS namespace is to work around
 // an unknown compiler bug/issue with the gcc 4.2.1 on SUSE 10.  See
 //    http://code.google.com/p/google-gflags/issues/detail?id=20
-
-// quj's code.
+// Dahai: fix a warning issue by changing the code, see
+//    http://code.google.com/p/google-gflags/issues/detail?id=33
 #define DEFINE_string(name, val, txt)                                     \
   namespace fLS {                                                         \
-    static union { void* align; char s[sizeof(std::string)]; } s_##name[2]; \
-    const std::string* const FLAGS_no##name = new (s_##name[0].s) std::string(val); \
+    static union { void* align; \
+    char s[sizeof(std::string)]; \
+    } s_##name[2]; \
+    std::string* const FLAGS_no##name = new(s_##name[0].s) std::string(val); \
     static ::base::FlagRegisterer o_##name(                \
       #name, "string", MAYBE_STRIPPED_HELP(txt), __FILE__,                \
-      s_##name[0].s, new (s_##name[1].s) std::string(*FLAGS_no##name));   \
+      s_##name[0].s, new(s_##name[1].s) std::string(*FLAGS_no##name));   \
     extern std::string& FLAGS_##name;                                     \
-    using fLS::FLAGS_##name;                                              \
-    std::string& FLAGS_##name = *(reinterpret_cast<std::string*>(s_##name[0].s));   \
+    std::string& FLAGS_##name = *FLAGS_no##name;   \
   }                                                                       \
   using fLS::FLAGS_##name
 

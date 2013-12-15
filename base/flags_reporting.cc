@@ -55,8 +55,9 @@
 #include <string>
 #include <vector>
 
+#include "base/env.h"
 #include "base/flags.h"
-#include "base/flags_completions.h"
+#include "base/string_util.h"
 
 #ifndef PATH_SEPARATOR
 #define PATH_SEPARATOR  '/'
@@ -79,6 +80,8 @@ DEFINE_bool(helpxml, false,
             "produce an xml version of help");
 DEFINE_bool(version, false,
             "show version and build info and exit");
+DEFINE_string(flag_dump_file, "",
+              "the file name to dump all flags currently used");
 
 namespace base {
 
@@ -94,6 +97,8 @@ using std::vector;
 // --------------------------------------------------------------------
 
 static const int kLineLength = 80;
+
+static const char* kDumpFlagsBlacklist[] = {"flagfile", NULL};
 
 static void AddString(const string& s,
                       string* final_string, int* chars_in_line) {
@@ -339,19 +344,37 @@ static void ShowXMLOfFlags(const char *prog_name) {
   fprintf(stdout, "</AllFlags>\n");
 }
 
+string GetVersionInfo() {
+  vector<std::pair<string, string> > envs;
+  ListBuildingEnvs(&envs);
+  uint32 max_key_length = 0;
+  for (vector<std::pair<string, string> >::const_iterator it = envs.begin();
+       it != envs.end(); ++it) {
+    if (it->first.size() + 1 > max_key_length)
+      max_key_length = it->first.size() + 1;
+  }
+
+  string version_info;
+  for (vector<std::pair<string, string> >::const_iterator it = envs.begin();
+       it != envs.end(); ++it) {
+    StringAppendF(&version_info, "%s%s: %s\n",
+                  it->first.c_str(),
+                  string(max_key_length - it->first.size(), ' ').c_str(),
+                  it->second.c_str());
+  }
+# if !defined(NDEBUG)
+  StringAppendF(&version_info, "Debug build (NDEBUG not #defined)\n");
+# endif
+  return version_info;
+}
+
 // --------------------------------------------------------------------
 // ShowVersion()
 //    Called upon --version.  Prints build-related info.
 // --------------------------------------------------------------------
 
 static void ShowVersion() {
-  fprintf(stdout, "%s\n", ProgramInvocationShortName());
-  // TODO: add other stuff, like a timestamp, who built it, what
-  //       target they built, etc.
-
-# if !defined(NDEBUG)
-  fprintf(stdout, "Debug build (NDEBUG not #defined)\n");
-# endif
+  fprintf(stdout, "%s\n", GetVersionInfo().c_str());
 }
 
 static void AppendPrognameStrings(vector<string>* substrings,
@@ -361,6 +384,100 @@ static void AppendPrognameStrings(vector<string>* substrings,
   substrings->push_back(r + ".");
   substrings->push_back(r + "-main.");
   substrings->push_back(r + "_main.");
+}
+
+static const string DumpOneFlag(const CommandLineFlagInfo& flag) {
+  string result("\n");
+  if (!flag.description.empty()) {
+    const char* c_string = flag.description.c_str();
+    int description_len = flag.description.size();
+    int beg = 0, end = kLineLength - 2, old_end, enter_pos;
+    do {
+      if (end < description_len) {
+        old_end = end;
+        while (end > beg && !isspace(c_string[end])) {
+          --end;
+        }
+        if (end <= beg) {
+          end = old_end;
+          while (end < description_len && !isspace(c_string[end])) {
+            ++end;
+          }
+        }
+      } else {
+        end = description_len;
+      }
+      enter_pos = beg + 1;
+      while (enter_pos < end && c_string[enter_pos] != '\n') {
+        enter_pos++;
+      }
+      if (enter_pos < end && c_string[enter_pos] == '\n') {
+        end = enter_pos;
+      }
+      string line;
+      TrimWhitespaceASCII(string(c_string + beg, end - beg), TRIM_ALL, &line);
+      StringAppendF(&result, "# %s\n", line.c_str());
+      while (isspace(c_string[end])) {
+        end++;
+      }
+      beg = end;
+      end = beg + kLineLength - 2;
+    } while (beg < description_len);
+  }
+  StringAppendF(&result,
+                "# type: %s\n# default:%s%s\n",
+                flag.type.c_str(),
+                flag.default_value.size() ? " " : "",
+                flag.default_value.c_str());
+  StringAppendF(&result,
+                "--%s=%s\n",
+                flag.name.c_str(),
+                flag.current_value.c_str());
+  return result;
+}
+
+static inline bool IsInDumpFlagsBlacklist(const string& flag_name) {
+  for (int i = 0; kDumpFlagsBlacklist[i]; i++) {
+    if (flag_name == kDumpFlagsBlacklist[i]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static void DumpFlagsToFile() {
+  string flag_dump_file = FLAGS_flag_dump_file;
+  FLAGS_flag_dump_file = "";
+
+  vector<CommandLineFlagInfo> flags;
+  GetAllFlags(&flags);
+
+  string bar(kLineLength, '#');
+  string target;
+  CHECK(base::GetBuildingEnv("target", &target));
+  string flagstr;
+  StringAppendF(&flagstr, "# binary:%s\n\n", target.c_str());
+  string last_filename = "";
+  bool first_file = true;
+  vector<CommandLineFlagInfo>::const_iterator flag;
+  for (flag = flags.begin(); flag != flags.end(); flag++) {
+    if (IsInDumpFlagsBlacklist(flag->name)) {
+      continue;
+    }
+    if (flag->filename != last_filename) {
+      if (!first_file)
+        StringAppendF(&flagstr, "%s\n\n\n", bar.c_str());
+      first_file = false;
+      last_filename = flag->filename;
+      StringAppendF(&flagstr, "%s\n", bar.c_str());
+      StringAppendF(&flagstr, "# filename: %s\n", flag->filename.c_str());
+    }
+    StringAppendF(&flagstr, "%s", DumpOneFlag(*flag).c_str());
+  }
+  StringAppendF(&flagstr, "%s", bar.c_str());
+  FILE *file = fopen(flag_dump_file.c_str(), "w");
+  CHECK(file) << "can not write flag dump file: " << flag_dump_file;
+  fprintf(file, "%s", flagstr.c_str());
 }
 
 // --------------------------------------------------------------------
@@ -373,9 +490,7 @@ static void AppendPrognameStrings(vector<string>* substrings,
 
 void HandleCommandLineHelpFlags() {
   const char* progname = ProgramInvocationShortName();
-  extern void (*commandlineflags_exitfunc)(int);   // in gflags.cc
-
-  HandleCommandLineCompletions();
+  extern void (*commandlineflags_exitfunc)(int code);   // in gflags.cc
 
   vector<string> substrings;
   AppendPrognameStrings(&substrings, progname);
@@ -384,22 +499,18 @@ void HandleCommandLineHelpFlags() {
     // show only flags related to this binary:
     // E.g. for fileutil.cc, want flags containing   ... "/fileutil." cc
     ShowUsageWithFlagsMatching(progname, substrings);
-    commandlineflags_exitfunc(1);   // almost certainly exit()
-
+    commandlineflags_exitfunc(0);   // almost certainly exit()
   } else if (FLAGS_help || FLAGS_helpfull) {
     // show all options
     ShowUsageWithFlagsRestrict(progname, "");   // empty restrict
-    commandlineflags_exitfunc(1);
-
+    commandlineflags_exitfunc(0);
   } else if (!FLAGS_helpon.empty()) {
     string restrict = "/" + FLAGS_helpon + ".";
     ShowUsageWithFlagsRestrict(progname, restrict.c_str());
-    commandlineflags_exitfunc(1);
-
+    commandlineflags_exitfunc(0);
   } else if (!FLAGS_helpmatch.empty()) {
     ShowUsageWithFlagsRestrict(progname, FLAGS_helpmatch.c_str());
-    commandlineflags_exitfunc(1);
-
+    commandlineflags_exitfunc(0);
   } else if (FLAGS_helppackage) {
     // Shows help for all files in the same directory as main().  We
     // don't want to resort to looking at dirname(progname), because
@@ -428,15 +539,16 @@ void HandleCommandLineHelpFlags() {
       fprintf(stderr, "WARNING: Unable to find a package for file=%s\n",
               progname);
     }
-    commandlineflags_exitfunc(1);
-
+    commandlineflags_exitfunc(0);
   } else if (FLAGS_helpxml) {
     ShowXMLOfFlags(progname);
-    commandlineflags_exitfunc(1);
-
+    commandlineflags_exitfunc(0);
   } else if (FLAGS_version) {
     ShowVersion();
     // Unlike help, we may be asking for version in a script, so return 0
+    commandlineflags_exitfunc(0);
+  } else if (!FLAGS_flag_dump_file.empty()) {
+    DumpFlagsToFile();
     commandlineflags_exitfunc(0);
   }
 }

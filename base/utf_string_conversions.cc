@@ -4,6 +4,7 @@
 
 #include "base/utf_string_conversions.h"
 
+#include "base/port.h"
 #include "base/string_piece.h"
 #include "base/utf_string_conversion_utils.h"
 

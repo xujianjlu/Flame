@@ -4,7 +4,8 @@
 
 #include "base/utf_string_conversion_utils.h"
 
-#include "base/third_party/icu/icu_utf.h"
+#include "base/icu_utf.h"
+#include "base/port.h"
 
 namespace base {
 

@@ -1,3 +1,6 @@
+// Copyright 2010  Inc. All Rights Reserved.
+// Author: quj@.com (Jing Qu)
+
 #ifndef BASE_THREAD_POOL_H_
 #define BASE_THREAD_POOL_H_
 
@@ -9,18 +12,25 @@
 #include <sys/stat.h>
 
 #include <queue>
+#include <vector>
 
+#include "base/basictypes.h"
+#include "base/callback.h"
+#include "base/dynamic_annotations.h"
 #include "base/mutex.h"
-#include "base/third_party/dynamic_annotations/dynamic_annotations.h"
 
 namespace base {
 
-class Closure;
 class WorkerThread;
 
+template <typename Type>
 class ProducerConsumerQueue {
  public:
-  ProducerConsumerQueue(int unused) {
+  // Capacity should be a positive number, INT_MAX means no capacity limit.
+  // Negative and zero are invalid.
+  explicit ProducerConsumerQueue(int capacity) {
+    CHECK_GT(capacity, 0);
+    capacity_ = capacity;
     ANNOTATE_PCQ_CREATE(this);
   }
   ~ProducerConsumerQueue() {
@@ -28,53 +38,85 @@ class ProducerConsumerQueue {
     ANNOTATE_PCQ_DESTROY(this);
   }
 
+  bool empty() {
+    MutexLock lock(&mu_);
+    return q_.empty();
+  }
+
   // Put.
-  void Put(void *item) {
-    mu_.Lock();
-      q_.push(item);
-      ANNOTATE_CONDVAR_SIGNAL(&mu_); // LockWhen in Get()
-      ANNOTATE_PCQ_PUT(this);
-    mu_.Unlock();
+  void Put(Type* item) {
+    MutexLock lock(&mu_);
+    if (IsLimited()) {
+      while (q_.size() >= capacity_) {
+        not_full_.Wait(&mu_);
+      }
+    }
+    CHECK(TryPutInternal(item));
+  }
+
+  // Returns true if succeed to add item to queue.
+  // If queue is full, return false;
+  bool TryPut(Type* item) {
+    MutexLock lock(&mu_);
+    return TryPutInternal(item);
   }
 
   // Get.
   // Blocks if the queue is empty.
-  void *Get() {
-    mu_.LockWhen(Condition(IsQueueNotEmpty, &q_));
-      void* item = NULL;
-      bool ok = TryGetInternal(&item);
-      CHECK(ok);
-    mu_.Unlock();
+  Type* Get() {
+    MutexLock lock(&mu_);
+    while (q_.empty())
+      not_empty_.Wait(&mu_);
+    Type* item = NULL;
+    bool ok = TryGetInternal(&item);
+    CHECK(ok);
     return item;
   }
 
   // If queue is not empty,
   // remove an element from queue, put it into *res and return true.
   // Otherwise return false.
-  bool TryGet(void **res) {
-    mu_.Lock();
-      bool ok = TryGetInternal(res);
-    mu_.Unlock();
-    return ok;
+  bool TryGet(Type **res) {
+    MutexLock lock(&mu_);
+    return TryGetInternal(res);
   }
 
+  // Return the maximum number of elements.
+  int capacity() { return capacity_; }
+
  private:
-  Mutex mu_;
-  std::queue<void*> q_; // protected by mu_
+  // Returns true if the queue has a limited capacity.
+  bool IsLimited() { return capacity_ != INT_MAX; }
 
   // Requires mu_
-  bool TryGetInternal(void ** item_ptr) {
+  bool TryGetInternal(Type** item_ptr) {
     if (q_.empty())
       return false;
     *item_ptr = q_.front();
     q_.pop();
+    if (IsLimited()) {
+      not_full_.Signal();
+    }
     ANNOTATE_PCQ_GET(this);
     return true;
   }
 
-  static bool IsQueueNotEmpty(std::queue<void*> * queue) {
-     return !queue->empty();
+  bool TryPutInternal(Type* item) {
+    if (IsLimited() && (q_.size() >= capacity_)) {
+      return false;
+    }
+    q_.push(item);
+    not_empty_.Signal();
+    ANNOTATE_CONDVAR_SIGNAL(&mu_);  // LockWhen in Get()
+    ANNOTATE_PCQ_PUT(this);
+    return true;
   }
+
+  Mutex mu_;
+  CondVar not_empty_;
+  CondVar not_full_;
+  int capacity_;
+  std::queue<Type*> q_;  // protected by mu_
 };
 
 // A thread pool that uses ProducerConsumerQueue.
@@ -82,9 +124,9 @@ class ProducerConsumerQueue {
 //   {
 //     ThreadPool pool(n_workers);
 //     pool.StartWorkers();
-//     pool.Add(NewCallback(func_with_no_args));
-//     pool.Add(NewCallback(func_with_one_arg, arg));
-//     pool.Add(NewCallback(func_with_two_args, arg1, arg2));
+//     pool.Add(NewOneTimeCallback(func_with_no_args));
+//     pool.Add(NewOneTimeCallback(func_with_one_arg, arg));
+//     pool.Add(NewOneTimeCallback(func_with_two_args, arg1, arg2));
 //     ...  more calls to pool.Add()
 //
 //      the ~ThreadPool() is called: we wait workers to finish
@@ -111,71 +153,16 @@ class ThreadPool {
 
  private:
   std::vector<WorkerThread*>  workers_;
-  ProducerConsumerQueue queue_;
+  ProducerConsumerQueue<Closure> queue_;
 
   static void* Worker(void *p);
 };
 
 
-/// Function pointer with zero, one or two parameters.
-struct Closure {
-  typedef void (*F0)();
-  typedef void (*F1)(void *arg1);
-  typedef void (*F2)(void *arg1, void *arg2);
-  int  n_params;
-  void *f;
-  void *param1;
-  void *param2;
-
-  void Execute() {
-    if (n_params == 0) {
-      (F0(f))();
-    } else if (n_params == 1) {
-      (F1(f))(param1);
-    } else {
-      CHECK(n_params == 2);
-      (F2(f))(param1, param2);
-    }
-    delete this;
-  }
-};
-
-// static Closure *NewCallback(void (*f)()) {
-//   Closure *res = new Closure;
-//   res->n_params = 0;
-//   res->f = (void*)(f);
-//   res->param1 = NULL;
-//   res->param2 = NULL;
-//   return res;
-// }
-
-template <class P1>
-Closure *NewCallback(void (*f)(P1), P1 p1) {
-  CHECK(sizeof(P1) <= sizeof(void*));
-  Closure *res = new Closure;
-  res->n_params = 1;
-  res->f = (void*)(f);
-  res->param1 = (void*)p1;
-  res->param2 = NULL;
-  return res;
-}
-
-template <class P1, class P2>
-Closure *NewCallback(void (*f)(P1, P2), P1 p1, P2 p2) {
-  CHECK(sizeof(P1) <= sizeof(void*));
-  CHECK(sizeof(P2) <= sizeof(void*));
-  Closure *res = new Closure;
-  res->n_params = 2;
-  res->f = (void*)(f);
-  res->param1 = (void*)p1;
-  res->param2 = (void*)p2;
-  return res;
-}
-
 /// Wrapper for pthread_create()/pthread_join().
 class WorkerThread {
  public:
-  typedef void *(*worker_t)(void*);
+  typedef void *(*worker_t)(void* p);
 
   WorkerThread(worker_t worker,
                void *arg = NULL,
@@ -187,12 +174,15 @@ class WorkerThread {
                const char *name = NULL)
       :w_(reinterpret_cast<worker_t>(worker)), arg_(arg), name_(name) {}
 
-  WorkerThread(void (*worker)(void *),
+  WorkerThread(void (*worker)(void* p),
                void *arg = NULL,
                const char *name = NULL)
       :w_(reinterpret_cast<worker_t>(worker)), arg_(arg), name_(name) {}
 
-  ~WorkerThread(){ w_ = NULL; arg_ = NULL;}
+  ~WorkerThread() {
+    w_ = NULL;
+    arg_ = NULL;
+  }
 
   void Start() {
     pthread_attr_t attr;
@@ -200,7 +190,7 @@ class WorkerThread {
     CHECK_EQ(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE),
              0);
 
-    CHECK(0 == pthread_create(&t_, &attr, (worker_t)ThreadBody, this));
+    CHECK_EQ(pthread_create(&t_, &attr, (worker_t)ThreadBody, this), 0);
     CHECK_EQ(pthread_attr_destroy(&attr), 0);
   }
 
@@ -223,6 +213,6 @@ class WorkerThread {
   const char *name_;
 };
 
-}
+}  // namespace base
 
-#endif
+#endif  // BASE_THREAD_POOL_H_

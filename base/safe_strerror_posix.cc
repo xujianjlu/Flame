@@ -8,16 +8,13 @@
 #include <stdio.h>
 #include <string.h>
 
-#if defined(__GLIBC__) && defined(__GNUC__)
+// see http://www.caichong.net/LINUX/other/1309708800/101225_4.html
+
 // GCC will complain about the unused second wrap function unless we tell it
 // that we meant for them to be potentially unused, which is exactly what this
 // attribute is for.
 #define POSSIBLY_UNUSED __attribute__((unused))
-#else
-#define POSSIBLY_UNUSED
-#endif
 
-#if defined(__GLIBC__)
 // glibc has two strerror_r functions: a historical GNU-specific one that
 // returns type char *, and a POSIX.1-2001 compliant one available since 2.3.4
 // that returns int. This wraps the GNU-specific one.
@@ -37,7 +34,6 @@ static void POSSIBLY_UNUSED wrap_posix_strerror_r(
   // The GNU version never fails. Unknown errors get an "unknown error" message.
   // The result is always null terminated.
 }
-#endif  // __GLIBC__
 
 // Wrapper for strerror_r functions that implement the POSIX interface. POSIX
 // does not define the behaviour for some of the edge cases, so we wrap it to

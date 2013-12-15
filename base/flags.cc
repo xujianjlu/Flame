@@ -92,21 +92,22 @@
 #ifndef __STDC_FORMAT_MACROS
 # define __STDC_FORMAT_MACROS 1   // gcc requires this to get PRId64, etc.
 #endif
-#include <inttypes.h>
-#include <stdio.h>     // for snprintf
+
+#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
-#include <stdio.h>
-#include <stdarg.h> // For va_list and related operations
-#include <string.h>
-#include <assert.h>
 #include <fnmatch.h>
-#include <iostream>    // for cerr
-#include <string>
-#include <map>
-#include <vector>
-#include <utility>     // for pair<>
+#include <inttypes.h>
+#include <stdarg.h> // For va_list and related operations
+#include <stdio.h>     // for snprintf
+#include <string.h>
+
 #include <algorithm>
+#include <iostream>    // for cerr
+#include <map>
+#include <string>
+#include <utility>     // for pair<>
+#include <vector>
 
 #include "base/flags.h"
 #include "base/mutex.h"
@@ -597,7 +598,7 @@ struct StringCmp {  // Used by the FlagRegistry map class to compare char*'s
 
 class FlagRegistry {
  public:
-  FlagRegistry() { }
+  FlagRegistry(): has_command_line_parsed_(false) { }
 
   void Lock() { lock_.Lock(); }
   void Unlock() { lock_.Unlock(); }
@@ -630,6 +631,9 @@ class FlagRegistry {
 
   static FlagRegistry* GlobalRegistry();   // returns a singleton registry
 
+  bool HasCommandLineParsed() { return has_command_line_parsed_; }
+  void SetCommandLineParsedMark(bool value) {has_command_line_parsed_ = value;}
+
  private:
   friend class base::FlagSaverImpl;  // reads all the flags in order to copy them
   friend class CommandLineFlagParser;    // for ValidateAllFlags
@@ -646,6 +650,8 @@ class FlagRegistry {
   FlagPtrMap flags_by_ptr_;
 
   Mutex lock_;
+
+  bool has_command_line_parsed_;
 
   static FlagRegistry* global_registry_;   // a singleton registry
   static Mutex global_registry_lock_;  // guards creation of global_registry_
@@ -1456,9 +1462,6 @@ const char* ProgramInvocationName() {             // like the GNU libc fn
 }
 const char* ProgramInvocationShortName() {        // like the GNU libc fn
   const char* slash = strrchr(argv0, '/');
-#ifdef OS_WINDOWS
-  if (!slash)  slash = strrchr(argv0, '\\');
-#endif
   return slash ? slash + 1 : argv0;
 }
 
@@ -1845,6 +1848,9 @@ static uint32 ParseCommandLineFlagsInternal(int* argc, char*** argv,
 
   if (parser.ReportErrors())        // may cause us to exit on illegal flags
     commandlineflags_exitfunc(1);   // almost certainly exit()
+
+  registry->SetCommandLineParsedMark(true);
+
   return r;
 }
 
@@ -1889,6 +1895,10 @@ uint32 ReparseCommandLineNonHelpFlags() {
   delete[] tmp_argv;
 
   return retval;
+}
+
+bool HasCommandLineParsed() {
+  return FlagRegistry::GlobalRegistry()->HasCommandLineParsed();
 }
 
 }  // namespace base

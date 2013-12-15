@@ -16,6 +16,8 @@
 // alternative strerror_r varies in semantics across platforms. Use these
 // functions instead.
 
+// see http://www.douban.com/note/165931644/
+
 // Thread-safe strerror function with dependable semantics that never fails.
 // It will write the string form of error "err" to buffer buf of length len.
 // If there is an error calling the OS's strerror_r() function then a message to

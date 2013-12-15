@@ -5,10 +5,10 @@
 #ifndef BASE_SINGLETON_H_
 #define BASE_SINGLETON_H_
 
+#include <sched.h>
 #include "base/at_exit.h"
 #include "base/atomicops.h"
-#include "base/platform_thread.h"
-#include "base/third_party/dynamic_annotations/dynamic_annotations.h"
+#include "base/dynamic_annotations.h"
 
 // Default traits for Singleton<Type>. Calls operator new and operator delete on
 // the object. Registers automatic deletion at process exit.
@@ -220,7 +220,7 @@ class Singleton {
       value = base::subtle::NoBarrier_Load(&instance_);
       if (value != kBeingCreatedMarker)
         break;
-      PlatformThread::YieldCurrentThread();
+      sched_yield();
     }
 
     // See the corresponding HAPPENS_BEFORE above.

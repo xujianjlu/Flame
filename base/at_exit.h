@@ -5,10 +5,11 @@
 #ifndef BASE_AT_EXIT_H_
 #define BASE_AT_EXIT_H_
 
+#include <pthread.h>
 #include <stack>
 
-#include "base/basictypes.h"
-#include "base/lock.h"
+#include "./basictypes.h"
+#include "./mutex.h"
 
 namespace base {
 
@@ -59,20 +60,17 @@ class AtExitManager {
     void* param_;
   };
 
-  Lock lock_;
+  base::Mutex mu_;
   std::stack<CallbackAndParam> stack_;
   AtExitManager* next_manager_;  // Stack of managers to allow shadowing.
 
   DISALLOW_COPY_AND_ASSIGN(AtExitManager);
 };
 
-// TODO(quj) ?
-//#if defined(UNIT_TEST)
 class ShadowingAtExitManager : public AtExitManager {
  public:
   ShadowingAtExitManager() : AtExitManager(true) {}
 };
-//#endif  // defined(UNIT_TEST)
 
 }  // namespace base
 

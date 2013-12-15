@@ -25,6 +25,7 @@ namespace subtle {
 
 // 32-bit low-level operations on any platform.
 
+// see http://hi.baidu.com/pan_edward/item/f5ae9d37c2ccb9f7e6bb7ace
 inline Atomic32 NoBarrier_CompareAndSwap(volatile Atomic32* ptr,
                                          Atomic32 old_value,
                                          Atomic32 new_value) {
@@ -88,8 +89,6 @@ inline void NoBarrier_Store(volatile Atomic32* ptr, Atomic32 value) {
   *ptr = value;
 }
 
-#if defined(__x86_64__)
-
 // 64-bit implementations of memory barrier can be simpler, because it
 // "mfence" is guaranteed to exist.
 inline void MemoryBarrier() {
@@ -100,28 +99,6 @@ inline void Acquire_Store(volatile Atomic32* ptr, Atomic32 value) {
   *ptr = value;
   MemoryBarrier();
 }
-
-#else
-
-inline void MemoryBarrier() {
-  if (AtomicOps_Internalx86CPUFeatures.has_sse2) {
-    __asm__ __volatile__("mfence" : : : "memory");
-  } else { // mfence is faster but not present on PIII
-    Atomic32 x = 0;
-    NoBarrier_AtomicExchange(&x, 0);  // acts as a barrier on PIII
-  }
-}
-
-inline void Acquire_Store(volatile Atomic32* ptr, Atomic32 value) {
-  if (AtomicOps_Internalx86CPUFeatures.has_sse2) {
-    *ptr = value;
-    __asm__ __volatile__("mfence" : : : "memory");
-  } else {
-    NoBarrier_AtomicExchange(ptr, value);
-                          // acts as a barrier on PIII
-  }
-}
-#endif
 
 inline void Release_Store(volatile Atomic32* ptr, Atomic32 value) {
   ATOMICOPS_COMPILER_BARRIER();
@@ -144,8 +121,6 @@ inline Atomic32 Release_Load(volatile const Atomic32* ptr) {
   MemoryBarrier();
   return *ptr;
 }
-
-#if defined(__x86_64__)
 
 // 64-bit low-level operations on 64-bit platform.
 
@@ -254,8 +229,6 @@ inline Atomic64 Release_CompareAndSwap(volatile Atomic64* ptr,
                                        Atomic64 new_value) {
   return NoBarrier_CompareAndSwap(ptr, old_value, new_value);
 }
-
-#endif  // defined(__x86_64__)
 
 } // namespace base::subtle
 } // namespace base

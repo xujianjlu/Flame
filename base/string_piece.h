@@ -54,35 +54,38 @@ class StringPiece {
   size_type size() const { return length_; }
   size_type length() const { return length_; }
   bool empty() const { return length_ == 0; }
-
+  //
   void clear() {
     ptr_ = NULL;
     length_ = 0;
   }
+  //
   void set(const char* data, size_type len) {
     ptr_ = data;
     length_ = len;
   }
+  //
   void set(const char* str) {
     ptr_ = str;
     length_ = str ? strlen(str) : 0;
   }
+  //
   void set(const void* data, size_type len) {
     ptr_ = reinterpret_cast<const char*>(data);
     length_ = len;
   }
-
+  //
   char operator[](size_type i) const { return ptr_[i]; }
-
+  //
   void remove_prefix(size_type n) {
     ptr_ += n;
     length_ -= n;
   }
-
+  //
   void remove_suffix(size_type n) {
     length_ -= n;
   }
-
+  //
   int compare(const StringPiece& x) const {
     int r = wordmemcmp(ptr_, x.ptr_, std::min(length_, x.length_));
     if (r == 0) {
@@ -91,12 +94,13 @@ class StringPiece {
     }
     return r;
   }
-
+  //
   std::string as_string() const {
-    // std::string doesn't like to take a NULL pointer even with a 0 size.
+    // std::string doesn't like to take a NULL pointer
+    // even with a 0 size.
     return std::string(!empty() ? data() : "", size());
   }
-
+  //
   void CopyToString(std::string* target) const;
   void AppendToString(std::string* target) const;
 
@@ -105,11 +109,27 @@ class StringPiece {
     return ((length_ >= x.length_) &&
             (wordmemcmp(ptr_, x.ptr_, x.length_) == 0));
   }
+  bool starts_with(const char * x) const {
+    return ((length_ >= strlen(x)) &&
+            (wordmemcmp(ptr_, x, strlen(x)) == 0));
+  }
+  bool starts_with(const std::string & x) const {
+    return ((length_ >= x.size()) &&
+            (wordmemcmp(ptr_, x.c_str(), x.size()) == 0));
+  }
 
   // Does "this" end with "x"
   bool ends_with(const StringPiece& x) const {
     return ((length_ >= x.length_) &&
-            (wordmemcmp(ptr_ + (length_-x.length_), x.ptr_, x.length_) == 0));
+            (wordmemcmp(ptr_ + (length_ - x.length_), x.ptr_, x.length_) == 0));
+  }
+  bool ends_with(const std::string & x) const {
+    return ((length_ >= x.size())&&
+            (wordmemcmp(ptr_ + (length_ - x.size()), x.c_str(), x.size()) == 0));
+  }
+  bool ends_with(const char * x) const {
+    return ((length_ >= strlen(x))&&
+            (wordmemcmp(ptr_ + (length_ - strlen(x)), x, strlen(x)) == 0));
   }
 
   // standard STL container boilerplate
@@ -123,6 +143,7 @@ class StringPiece {
   typedef const char* iterator;
   typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
   typedef std::reverse_iterator<iterator> reverse_iterator;
+  //
   iterator begin() const { return ptr_; }
   iterator end() const { return ptr_ + length_; }
   const_reverse_iterator rbegin() const {
@@ -131,17 +152,17 @@ class StringPiece {
   const_reverse_iterator rend() const {
     return const_reverse_iterator(ptr_);
   }
-
+  //
   size_type max_size() const { return length_; }
   size_type capacity() const { return length_; }
-
+  //
   size_type copy(char* buf, size_type n, size_type pos = 0) const;
-
+  //
   size_type find(const StringPiece& s, size_type pos = 0) const;
   size_type find(char c, size_type pos = 0) const;
   size_type rfind(const StringPiece& s, size_type pos = npos) const;
   size_type rfind(char c, size_type pos = npos) const;
-
+  //
   size_type find_first_of(const StringPiece& s, size_type pos = 0) const;
   size_type find_first_of(char c, size_type pos = 0) const {
     return find(c, pos);
@@ -161,33 +182,43 @@ class StringPiece {
     return memcmp(p, p2, N);
   }
 };
-
-bool operator==(const StringPiece& x, const StringPiece& y);
-
-inline bool operator!=(const StringPiece& x, const StringPiece& y) {
+//
+inline bool operator == (const StringPiece& x,
+                         const StringPiece& y) {
+  if (x.size() != y.size()) return false;
+  return StringPiece::wordmemcmp(x.data(), y.data(), x.size()) == 0;
+}
+//
+inline bool operator != (const StringPiece& x,
+                         const StringPiece& y) {
   return !(x == y);
 }
-
-inline bool operator<(const StringPiece& x, const StringPiece& y) {
+//
+inline bool operator < (const StringPiece& x,
+                        const StringPiece& y) {
   const int r = StringPiece::wordmemcmp(x.data(), y.data(),
                                         std::min(x.size(), y.size()));
   return ((r < 0) || ((r == 0) && (x.size() < y.size())));
 }
-
-inline bool operator>(const StringPiece& x, const StringPiece& y) {
+//
+inline bool operator > (const StringPiece& x,
+                        const StringPiece& y) {
   return y < x;
 }
-
-inline bool operator<=(const StringPiece& x, const StringPiece& y) {
+//
+inline bool operator <= (const StringPiece& x,
+                         const StringPiece& y) {
   return !(x > y);
 }
-
-inline bool operator>=(const StringPiece& x, const StringPiece& y) {
+//
+inline bool operator >= (const StringPiece& x,
+                       const StringPiece& y) {
   return !(x < y);
 }
 
 // allow StringPiece to be logged (needed for unit testing).
-extern std::ostream& operator<<(std::ostream& o, const StringPiece& piece);
+extern std::ostream& operator << (std::ostream& o,
+                                  const StringPiece& piece);
 
 }  // namespace base
 

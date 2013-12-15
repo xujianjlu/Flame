@@ -9,7 +9,8 @@
 #include <cstring>
 #include <sstream>
 
-#include "base/basictypes.h"
+#include "./basictypes.h"
+#include "./flags.h"
 
 //
 // Optional message capabilities
@@ -101,6 +102,9 @@
 // There is also the special severity of DFATAL, which logs FATAL in
 // debug mode, ERROR in normal mode.
 
+DECLARE_int32(v);
+DECLARE_bool(enable_addition_info_business_id);
+
 namespace logging {
 
 // Where to record logging output? A flat file and/or system debug log via
@@ -119,7 +123,8 @@ enum LoggingDestination { LOG_NONE,
 //
 // All processes writing to the log file must have their locking set for it to
 // work properly. Defaults to DONT_LOCK_LOG_FILE.
-enum LogLockingState { LOCK_LOG_FILE, DONT_LOCK_LOG_FILE };
+enum LogLockingState {LOCK_LOG_FILE,
+                      DONT_LOCK_LOG_FILE };
 
 // On startup, should we delete or append to an existing log file (if any)?
 // Defaults to APPEND_TO_OLD_LOG_FILE.
@@ -135,14 +140,9 @@ enum OldFileDeletionState { DELETE_OLD_LOG_FILE, APPEND_TO_OLD_LOG_FILE };
 // The default log file is initialized to "debug.log" in the application
 // directory. You probably don't want this, especially since the program
 // directory may not be writable on an enduser's system.
-#if defined(OS_WIN)
-void InitLogging(const wchar_t* log_file, LoggingDestination logging_dest,
-                 LogLockingState lock_log, OldFileDeletionState delete_old);
-#elif defined(OS_POSIX)
 // TODO(avi): do we want to do a unification of character types here?
 void InitLogging(const char* log_file, LoggingDestination logging_dest,
                  LogLockingState lock_log, OldFileDeletionState delete_old);
-#endif
 
 // Sets the log level. Anything at or above this level will be written to the
 // log file/displayed to the user (if applicable). Anything below this level
@@ -160,10 +160,8 @@ int GetMinLogLevel();
 void SetLogFilterPrefix(const char* filter);
 
 // Sets the common items you want to be prepended to each log message.
-// process and thread IDs default to off, the timestamp defaults to on.
-// If this function is not called, logging defaults to writing the timestamp
-// only.
-void SetLogItems(bool enable_process_id, bool enable_thread_id,
+// process and thread IDs default to on, the timestamp defaults to on.
+void SetLogItems(bool enable_process_id, bool enable_thread_id, bool enable_date,
                  bool enable_timestamp, bool enable_tickcount);
 
 // Sets the Log Assert Handler that will be used to notify of check failures.
@@ -263,25 +261,20 @@ const LogSeverity LOG_DFATAL_LEVEL = LOG_FATAL;
 #define SYSLOG_ASSERT(condition) \
   SYSLOG_IF(FATAL, !(condition)) << "Assert failed: " #condition ". "
 
-#if defined(OS_WIN)
-#define LOG_GETLASTERROR(severity) \
-  COMPACT_GOOGLE_LOG_EX_ ## severity(Win32ErrorLogMessage, \
-      ::logging::GetLastSystemErrorCode()).stream()
-#define LOG_GETLASTERROR_MODULE(severity, module) \
-  COMPACT_GOOGLE_LOG_EX_ ## severity(Win32ErrorLogMessage, \
-      ::logging::GetLastSystemErrorCode(), module).stream()
-// PLOG is the usual error logging macro for each platform.
-#define PLOG(severity) LOG_GETLASTERROR(severity)
-#define DPLOG(severity) DLOG_GETLASTERROR(severity)
-#elif defined(OS_POSIX)
+#define VLOG_IS_ON(verboselevel) (FLAGS_v >= (verboselevel))
+#define VLOG(verboselevel) LOG_IF(INFO, VLOG_IS_ON(verboselevel))
+
+#define VLOG_IS_ON_RAISED(verboselevel, raised_log_level) \
+  ((raised_log_level) >= (verboselevel) || FLAGS_v >= (verboselevel))
+#define VLOG_RAISED(verboselevel, raised_log_level) \
+  LOG_IF(INFO, VLOG_IS_ON_RAISED(verboselevel, raised_log_level))
+
 #define LOG_ERRNO(severity) \
   COMPACT_GOOGLE_LOG_EX_ ## severity(ErrnoLogMessage, \
       ::logging::GetLastSystemErrorCode()).stream()
 // PLOG is the usual error logging macro for each platform.
 #define PLOG(severity) LOG_ERRNO(severity)
 #define DPLOG(severity) DLOG_ERRNO(severity)
-// TODO(tschmelcher): Should we add OSStatus logging for Mac?
-#endif
 
 #define PLOG_IF(severity, condition) \
   !(condition) ? (void) 0 : logging::LogMessageVoidify() & PLOG(severity)
@@ -383,90 +376,6 @@ DECLARE_CHECK_STROP_IMPL(_stricmp, false)
 //     foo.CheckThatFoo();
 //   #endif
 
-// http://crbug.com/16512 is open for a real fix for this.  For now, Windows
-// uses OFFICIAL_BUILD and other platforms use the branding flag when NDEBUG is
-// defined.
-#if ( defined(OS_WIN) && defined(OFFICIAL_BUILD)) || \
-    (!defined(OS_WIN) && defined(NDEBUG) && defined(GOOGLE_CHROME_BUILD))
-// In order to have optimized code for official builds, remove DLOGs and
-// DCHECKs.
-#define OMIT_DLOG_AND_DCHECK 1
-#endif
-
-#ifdef OMIT_DLOG_AND_DCHECK
-
-#define DLOG(severity) \
-  true ? (void) 0 : logging::LogMessageVoidify() & LOG(severity)
-
-#define DLOG_IF(severity, condition) \
-  true ? (void) 0 : logging::LogMessageVoidify() & LOG(severity)
-
-#define DLOG_ASSERT(condition) \
-  true ? (void) 0 : LOG_ASSERT(condition)
-
-#if defined(OS_WIN)
-#define DLOG_GETLASTERROR(severity) \
-  true ? (void) 0 : logging::LogMessageVoidify() & LOG_GETLASTERROR(severity)
-#define DLOG_GETLASTERROR_MODULE(severity, module) \
-  true ? (void) 0 : logging::LogMessageVoidify() & \
-      LOG_GETLASTERROR_MODULE(severity, module)
-#elif defined(OS_POSIX)
-#define DLOG_ERRNO(severity) \
-  true ? (void) 0 : logging::LogMessageVoidify() & LOG_ERRNO(severity)
-#endif
-
-#define DPLOG_IF(severity, condition) \
-  true ? (void) 0 : logging::LogMessageVoidify() & PLOG(severity)
-
-enum { DEBUG_MODE = 0 };
-
-// This macro can be followed by a sequence of stream parameters in
-// non-debug mode. The DCHECK and friends macros use this so that
-// the expanded expression DCHECK(foo) << "asdf" is still syntactically
-// valid, even though the expression will get optimized away.
-// In order to avoid variable unused warnings for code that only uses a
-// variable in a CHECK, we make sure to use the macro arguments.
-#define NDEBUG_EAT_STREAM_PARAMETERS \
-  logging::LogMessage(__FILE__, __LINE__).stream()
-
-#define DCHECK(condition) \
-  while (false && (condition)) NDEBUG_EAT_STREAM_PARAMETERS
-
-#define DPCHECK(condition) \
-  while (false && (condition)) NDEBUG_EAT_STREAM_PARAMETERS
-
-#define DCHECK_EQ(val1, val2) \
-  while (false && (val1) == (val2)) NDEBUG_EAT_STREAM_PARAMETERS
-
-#define DCHECK_NE(val1, val2) \
-  while (false && (val1) == (val2)) NDEBUG_EAT_STREAM_PARAMETERS
-
-#define DCHECK_LE(val1, val2) \
-  while (false && (val1) == (val2)) NDEBUG_EAT_STREAM_PARAMETERS
-
-#define DCHECK_LT(val1, val2) \
-  while (false && (val1) == (val2)) NDEBUG_EAT_STREAM_PARAMETERS
-
-#define DCHECK_GE(val1, val2) \
-  while (false && (val1) == (val2)) NDEBUG_EAT_STREAM_PARAMETERS
-
-#define DCHECK_GT(val1, val2) \
-  while (false && (val1) == (val2)) NDEBUG_EAT_STREAM_PARAMETERS
-
-#define DCHECK_STREQ(str1, str2) \
-  while (false && (str1) == (str2)) NDEBUG_EAT_STREAM_PARAMETERS
-
-#define DCHECK_STRCASEEQ(str1, str2) \
-  while (false && (str1) == (str2)) NDEBUG_EAT_STREAM_PARAMETERS
-
-#define DCHECK_STRNE(str1, str2) \
-  while (false && (str1) == (str2)) NDEBUG_EAT_STREAM_PARAMETERS
-
-#define DCHECK_STRCASENE(str1, str2) \
-  while (false && (str1) == (str2)) NDEBUG_EAT_STREAM_PARAMETERS
-
-#else  // OMIT_DLOG_AND_DCHECK
-
 #ifndef NDEBUG
 // On a regular debug build, we want to have DCHECKS and DLOGS enabled.
 
@@ -474,13 +383,7 @@ enum { DEBUG_MODE = 0 };
 #define DLOG_IF(severity, condition) LOG_IF(severity, condition)
 #define DLOG_ASSERT(condition) LOG_ASSERT(condition)
 
-#if defined(OS_WIN)
-#define DLOG_GETLASTERROR(severity) LOG_GETLASTERROR(severity)
-#define DLOG_GETLASTERROR_MODULE(severity, module) \
-  LOG_GETLASTERROR_MODULE(severity, module)
-#elif defined(OS_POSIX)
 #define DLOG_ERRNO(severity) LOG_ERRNO(severity)
-#endif
 
 #define DPLOG_IF(severity, condition) PLOG_IF(severity, condition)
 
@@ -531,16 +434,8 @@ enum { DEBUG_MODE = 1 };
 #define DLOG_ASSERT(condition) \
   true ? (void) 0 : LOG_ASSERT(condition)
 
-#if defined(OS_WIN)
-#define DLOG_GETLASTERROR(severity) \
-  true ? (void) 0 : logging::LogMessageVoidify() & LOG_GETLASTERROR(severity)
-#define DLOG_GETLASTERROR_MODULE(severity, module) \
-  true ? (void) 0 : logging::LogMessageVoidify() & \
-      LOG_GETLASTERROR_MODULE(severity, module)
-#elif defined(OS_POSIX)
 #define DLOG_ERRNO(severity) \
   true ? (void) 0 : logging::LogMessageVoidify() & LOG_ERRNO(severity)
-#endif
 
 #define DPLOG_IF(severity, condition) \
   true ? (void) 0 : logging::LogMessageVoidify() & PLOG(severity)
@@ -611,9 +506,6 @@ extern bool g_enable_dcheck;
 #define DCHECK_LT(val1, val2) DCHECK_OP(LT, < , val1, val2)
 #define DCHECK_GE(val1, val2) DCHECK_OP(GE, >=, val1, val2)
 #define DCHECK_GT(val1, val2) DCHECK_OP(GT, > , val1, val2)
-
-#endif  // OMIT_DLOG_AND_DCHECK
-#undef OMIT_DLOG_AND_DCHECK
 
 
 // Helper functions for CHECK_OP macro.
@@ -694,25 +586,6 @@ class LogMessage {
   std::ostringstream stream_;
   size_t message_start_;  // Offset of the start of the message (past prefix
                           // info).
-#if defined(OS_WIN)
-  // Stores the current value of GetLastError in the constructor and restores
-  // it in the destructor by calling SetLastError.
-  // This is useful since the LogMessage class uses a lot of Win32 calls
-  // that will lose the value of GLE and the code that called the log function
-  // will have lost the thread error value when the log call returns.
-  class SaveLastError {
-   public:
-    SaveLastError();
-    ~SaveLastError();
-
-    unsigned long get_error() const { return last_error_; }
-
-   protected:
-    unsigned long last_error_;
-  };
-
-  SaveLastError last_error_;
-#endif
 
   DISALLOW_COPY_AND_ASSIGN(LogMessage);
 };
@@ -734,45 +607,12 @@ class LogMessageVoidify {
   void operator&(std::ostream&) { }
 };
 
-#if defined(OS_WIN)
-typedef unsigned long SystemErrorCode;
-#elif defined(OS_POSIX)
 typedef int SystemErrorCode;
-#endif
 
 // Alias for ::GetLastError() on Windows and errno on POSIX. Avoids having to
 // pull in windows.h just for GetLastError() and DWORD.
 SystemErrorCode GetLastSystemErrorCode();
 
-#if defined(OS_WIN)
-// Appends a formatted system message of the GetLastError() type.
-class Win32ErrorLogMessage {
- public:
-  Win32ErrorLogMessage(const char* file,
-                       int line,
-                       LogSeverity severity,
-                       SystemErrorCode err,
-                       const char* module);
-
-  Win32ErrorLogMessage(const char* file,
-                       int line,
-                       LogSeverity severity,
-                       SystemErrorCode err);
-
-  std::ostream& stream() { return log_message_.stream(); }
-
-  // Appends the error message before destructing the encapsulated class.
-  ~Win32ErrorLogMessage();
-
- private:
-  SystemErrorCode err_;
-  // Optional name of the module defining the error.
-  const char* module_;
-  LogMessage log_message_;
-
-  DISALLOW_COPY_AND_ASSIGN(Win32ErrorLogMessage);
-};
-#elif defined(OS_POSIX)
 // Appends a formatted system message of the errno type
 class ErrnoLogMessage {
  public:
@@ -792,7 +632,6 @@ class ErrnoLogMessage {
 
   DISALLOW_COPY_AND_ASSIGN(ErrnoLogMessage);
 };
-#endif  // OS_WIN
 
 // Closes the log file explicitly if open.
 // NOTE: Since the log file is opened as necessary by the action of logging
@@ -810,6 +649,48 @@ void RawLog(int level, const char* message);
     if (!(condition))                                                          \
       logging::RawLog(logging::LOG_FATAL, "Check failed: " #condition "\n");   \
   } while (0)
+
+/*
+ * Support output extra info for LOG(...) & VLOG(...)
+ */
+#define LOG_ADDITION_INFO_BUSINESS_ID_IF(bid, condition) \
+  logging::ScopedLogAdditionInfoBusinessID scoped_log_bid(bid, condition)
+#define LOG_ADDITION_INFO_BUSINESS_ID(bid) \
+  logging::ScopedLogAdditionInfoBusinessID scoped_log_bid(bid, true)
+
+class LogAdditionInfo {
+ public:
+  static LogAdditionInfo* GetInstance();
+  friend std::ostream& operator<<(std::ostream &out, const LogAdditionInfo &info);
+
+  LogAdditionInfo();
+  ~LogAdditionInfo();
+
+  void AddBusinessIDByThread(uint64 bid);
+  void RemoveBusinessIDByThread();
+
+ private:
+  pthread_key_t business_id_key_;
+
+  DISALLOW_COPY_AND_ASSIGN(LogAdditionInfo);
+};
+
+class ScopedLogAdditionInfoBusinessID {
+ public:
+  ScopedLogAdditionInfoBusinessID(uint64 bid, bool is_enabled) {
+    is_enabled_ = FLAGS_enable_addition_info_business_id && is_enabled;
+    if (is_enabled_) {
+      LogAdditionInfo::GetInstance()->AddBusinessIDByThread(bid);
+    }
+  }
+  ~ScopedLogAdditionInfoBusinessID() {
+    if (is_enabled_) {
+      LogAdditionInfo::GetInstance()->RemoveBusinessIDByThread();
+    }
+  }
+ private:
+  bool is_enabled_;
+};
 
 }  // namespace logging
 
@@ -840,13 +721,9 @@ inline std::ostream& operator<<(std::ostream& out, const std::wstring& wstr) {
 #define NOTIMPLEMENTED_POLICY 4
 #endif
 
-#if defined(COMPILER_GCC)
 // On Linux, with GCC, we can use __PRETTY_FUNCTION__ to get the demangled name
 // of the current function in the NOTIMPLEMENTED message.
 #define NOTIMPLEMENTED_MSG "Not implemented reached in " << __PRETTY_FUNCTION__
-#else
-#define NOTIMPLEMENTED_MSG "NOT IMPLEMENTED"
-#endif
 
 #if NOTIMPLEMENTED_POLICY == 0
 #define NOTIMPLEMENTED() ;

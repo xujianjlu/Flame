@@ -13,9 +13,11 @@
 #include <vector>
 
 #include "base/basictypes.h"
-#include "base/compiler_specific.h"
+#include "base/logging.h"
+#include "base/port.h"
 #include "base/string16.h"
 #include "base/string_piece.h"  // For implicit conversions.
+#include "base/utf.h"
 
 // Safe standard library wrappers for all platforms.
 
@@ -29,27 +31,27 @@ namespace base {
 // Compares the two strings s1 and s2 without regard to case using
 // the current locale; returns 0 if they are equal, 1 if s1 > s2, and -1 if
 // s2 > s1 according to a lexicographic comparison.
-int strcasecmp(const char* s1, const char* s2);
+int StrCaseCmp(const char* s1, const char* s2);
 
 // Compares up to count characters of s1 and s2 without regard to case using
 // the current locale; returns 0 if they are equal, 1 if s1 > s2, and -1 if
 // s2 > s1 according to a lexicographic comparison.
-int strncasecmp(const char* s1, const char* s2, size_t count);
+int StrnCaseCmp(const char* s1, const char* s2, size_t count);
 
 // Same as strncmp but for char16 strings.
-int strncmp16(const char16* s1, const char16* s2, size_t count);
+int StrnCmp16(const char16* s1, const char16* s2, size_t count);
 
 // Wrapper for vsnprintf that always null-terminates and always returns the
 // number of characters that would be in an untruncated formatted
 // string, even when truncation occurs.
-int vsnprintf(char* buffer, size_t size, const char* format, va_list arguments)
+int VsnPrintf(char* buffer, size_t size, const char* format, va_list arguments)
     PRINTF_FORMAT(3, 0);
 
 // vswprintf always null-terminates, but when truncation occurs, it will either
 // return -1 or the number of characters that would be in an untruncated
 // formatted string.  The actual return value depends on the underlying
 // C library's vswprintf implementation.
-int vswprintf(wchar_t* buffer, size_t size,
+int VswPrintf(wchar_t* buffer, size_t size,
               const wchar_t* format, va_list arguments) WPRINTF_FORMAT(3, 0);
 
 // Some of these implementations need to be inlined.
@@ -73,7 +75,7 @@ inline int swprintf(wchar_t* buffer, size_t size, const wchar_t* format, ...)
 inline int swprintf(wchar_t* buffer, size_t size, const wchar_t* format, ...) {
   va_list arguments;
   va_start(arguments, format);
-  int result = vswprintf(buffer, size, format, arguments);
+  int result = VswPrintf(buffer, size, format, arguments);
   va_end(arguments);
   return result;
 }
@@ -110,15 +112,50 @@ size_t wcslcpy(wchar_t* dst, const wchar_t* src, size_t dst_size);
 // This function is intended to be called from base::vswprintf.
 bool IsWprintfFormatPortable(const wchar_t* format);
 
-}  // namespace base
+// translate unicode ctring to a displayable string
+// such as "8764" to "≅"
+inline void UniCodeStrToStr(const std::string &ucode, std::string *str) {
+  char s[5] = {0};
+  try {
+    Rune r = atoi(ucode.c_str());
+    int iret = runetochar(s, &r);
+    s[iret]='\0';
+  }
+  catch(...) {
+    s[0] = '\0';
+  }
+  str->clear();
+  str->append(s);
+}
 
-#if defined(OS_WIN)
-#include "base/string_util_win.h"
-#elif defined(OS_POSIX)
-#include "base/string_util_posix.h"
-#else
-#error Define string operations appropriately for your platform
+inline int StrCaseCmp(const char* string1, const char* string2) {
+  return ::strcasecmp(string1, string2);
+}
+
+inline int StrnCaseCmp(const char* string1, const char* string2, size_t count) {
+  return ::strncasecmp(string1, string2, count);
+}
+
+inline int VsnPrintf(char* buffer, size_t size,
+                     const char* format, va_list arguments) {
+  return ::vsnprintf(buffer, size, format, arguments);
+}
+
+inline int StrnCmp16(const char16* s1, const char16* s2, size_t count) {
+#if defined(WCHAR_T_IS_UTF16)
+  return ::wcsncmp(s1, s2, count);
+#elif defined(WCHAR_T_IS_UTF32)
+  return c16memcmp(s1, s2, count);
 #endif
+}
+
+inline int VswPrintf(wchar_t* buffer, size_t size,
+                     const wchar_t* format, va_list arguments) {
+  DCHECK(IsWprintfFormatPortable(format));
+  return ::vswprintf(buffer, size, format, arguments);
+}
+
+}  // namespace base
 
 // These threadsafe functions return references to globally unique empty
 // strings.
@@ -253,10 +290,128 @@ bool IsStringASCII(const std::wstring& str);
 bool IsStringASCII(const base::StringPiece& str);
 bool IsStringASCII(const string16& str);
 
+static const unsigned char kToUpperMap[256] = {
+  '\0', 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, '\t',
+  '\n', 0x0b, 0x0c, '\r', 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13,
+  0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+  0x1e, 0x1f,  ' ',  '!',  '"',  '#',  '$',  '%',  '&', '\'',
+  '(',  ')',  '*',  '+',  ',',  '-',  '.',  '/',  '0',  '1',
+  '2',  '3',  '4',  '5',  '6',  '7',  '8',  '9',  ':',  ';',
+  '<',  '=',  '>',  '?',  '@',  'A',  'B',  'C',  'D',  'E',
+  'F',  'G',  'H',  'I',  'J',  'K',  'L',  'M',  'N',  'O',
+  'P',  'Q',  'R',  'S',  'T',  'U',  'V',  'W',  'X',  'Y',
+  'Z',  '[', '\\',  ']',  '^',  '_',  '`',  'A',  'B',  'C',
+  'D',  'E',  'F',  'G',  'H',  'I',  'J',  'K',  'L',  'M',
+  'N',  'O',  'P',  'Q',  'R',  'S',  'T',  'U',  'V',  'W',
+  'X',  'Y',  'Z',  '{',  '|',  '}',  '~', 0x7f, 0x80, 0x81,
+  0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b,
+  0x8c, 0x8d, 0x8e, 0x8f, 0x90, 0x91, 0x92, 0x93, 0x94, 0x95,
+  0x96, 0x97, 0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f,
+  0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0xa9,
+  0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf, 0xb0, 0xb1, 0xb2, 0xb3,
+  0xb4, 0xb5, 0xb6, 0xb7, 0xb8, 0xb9, 0xba, 0xbb, 0xbc, 0xbd,
+  0xbe, 0xbf, 0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7,
+  0xc8, 0xc9, 0xca, 0xcb, 0xcc, 0xcd, 0xce, 0xcf, 0xd0, 0xd1,
+  0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7, 0xd8, 0xd9, 0xda, 0xdb,
+  0xdc, 0xdd, 0xde, 0xdf, 0xe0, 0xe1, 0xe2, 0xe3, 0xe4, 0xe5,
+  0xe6, 0xe7, 0xe8, 0xe9, 0xea, 0xeb, 0xec, 0xed, 0xee, 0xef,
+  0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9,
+  0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff
+};
+
+static const unsigned char kToLowerMap[256] = {
+  '\0', 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, '\t',
+  '\n', 0x0b, 0x0c, '\r', 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13,
+  0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+  0x1e, 0x1f,  ' ',  '!',  '"',  '#',  '$',  '%',  '&', '\'',
+  '(',  ')',  '*',  '+',  ',',  '-',  '.',  '/',  '0',  '1',
+  '2',  '3',  '4',  '5',  '6',  '7',  '8',  '9',  ':',  ';',
+  '<',  '=',  '>',  '?',  '@',  'a',  'b',  'c',  'd',  'e',
+  'f',  'g',  'h',  'i',  'j',  'k',  'l',  'm',  'n',  'o',
+  'p',  'q',  'r',  's',  't',  'u',  'v',  'w',  'x',  'y',
+  'z',  '[', '\\',  ']',  '^',  '_',  '`',  'a',  'b',  'c',
+  'd',  'e',  'f',  'g',  'h',  'i',  'j',  'k',  'l',  'm',
+  'n',  'o',  'p',  'q',  'r',  's',  't',  'u',  'v',  'w',
+  'x',  'y',  'z',  '{',  '|',  '}',  '~', 0x7f, 0x80, 0x81,
+  0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x8b,
+  0x8c, 0x8d, 0x8e, 0x8f, 0x90, 0x91, 0x92, 0x93, 0x94, 0x95,
+  0x96, 0x97, 0x98, 0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f,
+  0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0xa9,
+  0xaa, 0xab, 0xac, 0xad, 0xae, 0xaf, 0xb0, 0xb1, 0xb2, 0xb3,
+  0xb4, 0xb5, 0xb6, 0xb7, 0xb8, 0xb9, 0xba, 0xbb, 0xbc, 0xbd,
+  0xbe, 0xbf, 0xc0, 0xc1, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7,
+  0xc8, 0xc9, 0xca, 0xcb, 0xcc, 0xcd, 0xce, 0xcf, 0xd0, 0xd1,
+  0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7, 0xd8, 0xd9, 0xda, 0xdb,
+  0xdc, 0xdd, 0xde, 0xdf, 0xe0, 0xe1, 0xe2, 0xe3, 0xe4, 0xe5,
+  0xe6, 0xe7, 0xe8, 0xe9, 0xea, 0xeb, 0xec, 0xed, 0xee, 0xef,
+  0xf0, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9,
+  0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff
+};
+
+inline void StringUpperCopy(char* dest, const char* str, int len) {
+  int i;
+  uint32_t eax, ebx;
+  const uint8_t* ustr = (const uint8_t*) str;
+  const int leftover = len % 4;
+  const int imax = len / 4;
+  const uint32_t* s = reinterpret_cast<const uint32_t*>(str);
+  uint32_t* d = reinterpret_cast<uint32_t*>(dest);
+  for (i = 0; i != imax; ++i) {
+    eax = s[i];
+    //  This is based on the algorithm by Paul Hsieh
+    //  http://www.azillionmonkeys.com/qed/asmexample.html
+    ebx = (0x7f7f7f7fu & eax) + 0x05050505u;
+    ebx = (0x7f7f7f7fu & ebx) + 0x1a1a1a1au;
+    ebx = ((ebx & ~eax) >> 2) & 0x20202020u;
+    *d++ = eax - ebx;
+  }
+
+  i = imax*4;
+  dest = reinterpret_cast<char*>(d);
+  switch (leftover) {
+    case 3: *dest++ = static_cast<char>(kToUpperMap[ustr[i++]]);
+    case 2: *dest++ = static_cast<char>(kToUpperMap[ustr[i++]]);
+    case 1: *dest++ = static_cast<char>(kToUpperMap[ustr[i]]);
+    case 0: *dest = '\0';
+  }
+}
+
+inline void StringLowerCopy(char* dest, const char* str, int len) {
+  int i;
+  uint32_t eax, ebx;
+  const uint8_t* ustr = (const uint8_t*) str;
+  const int leftover = len % 4;
+  const int imax = len / 4;
+  const uint32_t* s = (const uint32_t*) str;
+  uint32_t* d = reinterpret_cast<uint32_t*>(dest);
+  for (i = 0; i != imax; ++i) {
+    eax = s[i];
+    //  This is based on the algorithm by Paul Hsieh
+    //  http://www.azillionmonkeys.com/qed/asmexample.html
+    ebx = (0x7f7f7f7fu & eax) + 0x25252525u;
+    ebx = (0x7f7f7f7fu & ebx) + 0x1a1a1a1au;
+    ebx = ((ebx & ~eax) >> 2) & 0x20202020u;
+    *d++ = eax + ebx;
+  }
+
+  i = imax*4;
+  dest = reinterpret_cast<char*>(d);
+  switch (leftover) {
+    case 3: *dest++ = static_cast<char>(kToLowerMap[ustr[i++]]);
+    case 2: *dest++ = static_cast<char>(kToLowerMap[ustr[i++]]);
+    case 1: *dest++ = static_cast<char>(kToLowerMap[ustr[i]]);
+    case 0: *dest = '\0';
+  }
+}
+
 // ASCII-specific tolower.  The standard library's tolower is locale sensitive,
 // so we don't want to use it here.
 template <class Char> inline Char ToLowerASCII(Char c) {
   return (c >= 'A' && c <= 'Z') ? (c + ('a' - 'A')) : c;
+}
+
+template <> inline char ToLowerASCII(char c) {
+  return kToLowerMap[static_cast<unsigned char>(c)];
 }
 
 // Converts the elements of the given string.  This version uses a pointer to
@@ -266,6 +421,23 @@ template <class str> inline void StringToLowerASCII(str* s) {
     *i = ToLowerASCII(*i);
 }
 
+template <> inline void StringToLowerASCII(std::string* s) {
+  //  NOTE:std::string is copy-on-write, here we add this line to
+  //  avoid below case happening:
+  //  string a = "Hello";
+  //  string b(a);
+  //  StringToUpperASCII(&b);
+  //  a == "hello"
+  if (!s->empty()) {
+    //  Write only one member, but copy-on-write happens
+    (*s)[0] = (*s)[0];
+  } else {
+    return;
+  }
+  StringLowerCopy(const_cast<char*>(s->data()),
+                  const_cast<char*>(s->data()), s->size());
+}
+
 template <class str> inline str StringToLowerASCII(const str& s) {
   // for std::string and std::wstring
   str output(s);
@@ -273,10 +445,32 @@ template <class str> inline str StringToLowerASCII(const str& s) {
   return output;
 }
 
+template <> inline std::string StringToLowerASCII(const std::string& str) {
+  std::string s(str.size(), '\0');
+  StringLowerCopy(const_cast<char*>(s.data()), str.data(), str.size());
+  return s;
+}
+
+template <class str> inline void StringToLowerASCII(const str& in, str* out) {
+  // for std::string and std::wstring
+  out->assign(in);
+  StringToLowerASCII(out);
+}
+
+template <> inline void StringToLowerASCII(const std::string& in,
+                                           std::string* out) {
+  out->resize(in.size());
+  StringLowerCopy(const_cast<char*>(out->data()), in.data(), in.size());
+}
+
 // ASCII-specific toupper.  The standard library's toupper is locale sensitive,
 // so we don't want to use it here.
 template <class Char> inline Char ToUpperASCII(Char c) {
   return (c >= 'a' && c <= 'z') ? (c + ('A' - 'a')) : c;
+}
+
+template <> inline char ToUpperASCII(char c) {
+  return kToUpperMap[static_cast<unsigned char>(c)];
 }
 
 // Converts the elements of the given string.  This version uses a pointer to
@@ -286,11 +480,34 @@ template <class str> inline void StringToUpperASCII(str* s) {
     *i = ToUpperASCII(*i);
 }
 
+template <> inline void StringToUpperASCII(std::string* s) {
+  //  NOTE:std::string is copy-on-write, here we add this line to
+  //  avoid below case happening:
+  //  string a = "Hello";
+  //  string b(a);
+  //  StringToUpperASCII(&b);
+  //  a == "hello"
+  if (!s->empty()) {
+    //  Write only one member, but copy-on-write happens
+    (*s)[0] = (*s)[0];
+  } else {
+    return;
+  }
+  StringUpperCopy(const_cast<char*>(s->data()),
+                  const_cast<char*>(s->data()), s->size());
+}
+
 template <class str> inline str StringToUpperASCII(const str& s) {
   // for std::string and std::wstring
   str output(s);
   StringToUpperASCII(&output);
   return output;
+}
+
+template <> inline std::string StringToUpperASCII(const std::string& str) {
+  std::string s(str.size(), '\0');
+  StringUpperCopy(const_cast<char*>(s.data()), str.data(), str.size());
+  return s;
 }
 
 // Compare the lower-case form of the given string against the given ASCII
@@ -421,6 +638,10 @@ void ReplaceSubstringsAfterOffset(std::string* str,
                                   const std::string& replace_with);
 
 // Specialized string-conversion functions.
+std::string IntToBytes(int value);
+std::string Int64ToBytes(int64 value);
+int BytesToInt(const char **buffer);
+int64 BytesToInt64(const char **buffer);
 std::string IntToString(int value);
 std::wstring IntToWString(int value);
 string16 IntToString16(int value);
@@ -436,6 +657,9 @@ std::wstring Uint64ToWString(uint64 value);
 std::string DoubleToString(double value);
 std::wstring DoubleToWString(double value);
 
+std::string Int64ToHexString(int64 value);
+void Int64ToHexString(int64 value, std::string* str);
+
 // Perform a best-effort conversion of the input string to a numeric type,
 // setting |*output| to the result of the conversion.  Returns true for
 // "perfect" conversions; returns false in the following cases:
@@ -446,12 +670,17 @@ std::wstring DoubleToWString(double value);
 //  - No characters parseable as a number at the beginning of the string.
 //    |*output| will be set to 0.
 //  - Empty string.  |*output| will be set to 0.
+bool StringToBool(const std::string& intput, bool* output);
 bool StringToInt(const std::string& input, int* output);
 bool StringToInt(const string16& input, int* output);
 bool StringToInt64(const std::string& input, int64* output);
 bool StringToInt64(const string16& input, int64* output);
+bool StringToUint64(const std::string& input, uint64* output);
+bool StringToUint64(const string16& input, uint64* output);
+bool SizeStringToUint64(const std::string& input_string, uint64* output);
 bool HexStringToInt(const std::string& input, int* output);
 bool HexStringToInt(const string16& input, int* output);
+bool HexStringToInt64(const std::string& input, int64* output);
 
 // Similar to the previous functions, except that output is a vector of bytes.
 // |*output| will contain as many bytes as were successfully parsed prior to the
@@ -478,12 +707,14 @@ int64 StringToInt64(const std::string& value);
 int64 StringToInt64(const string16& value);
 int HexStringToInt(const std::string& value);
 int HexStringToInt(const string16& value);
+int64 HexStringToInt64(const std::string& value);
 double StringToDouble(const std::string& value);
 double StringToDouble(const string16& value);
 
 // Return a C++ string given printf-like input.
-std::string StringPrintf(const char* format, ...) PRINTF_FORMAT(1, 2);
-std::wstring StringPrintf(const wchar_t* format, ...) WPRINTF_FORMAT(1, 2);
+const std::string StringPrintf(const char* format, ...) PRINTF_FORMAT(1, 2);
+const std::wstring StringPrintf(const wchar_t* format, ...)
+    WPRINTF_FORMAT(1, 2);
 
 // Return a C++ string given vprintf-like input.
 std::string StringPrintV(const char* format, va_list ap) PRINTF_FORMAT(1, 0);
@@ -589,6 +820,10 @@ void SplitStringUsingSubstr(const std::string& str,
                             const std::string& s,
                             std::vector<std::string>* r);
 
+void SplitStringUsingSubstrDontTrim(const std::string& str,
+                                    const std::string& s,
+                                    std::vector<std::string>* r);
+
 // Splits a string into its fields delimited by any of the characters in
 // |delimiters|.  Each field is added to the |tokens| vector.  Returns the
 // number of tokens found.
@@ -609,6 +844,46 @@ size_t Tokenize(const base::StringPiece& str,
 std::wstring JoinString(const std::vector<std::wstring>& parts, wchar_t s);
 string16 JoinString(const std::vector<string16>& parts, char16 s);
 std::string JoinString(const std::vector<std::string>& parts, char s);
+std::string JoinString(const std::vector<std::string>& parts,
+                       const std::string &s);
+
+// Join array to string
+template<typename T>
+std::string JoinVector(const std::vector<T>& parts, char sep) {
+  if (parts.size() == 0) return "";
+  std::stringstream s;
+  typename std::vector<T>::const_iterator iter = parts.begin();
+  s << *iter++;
+  for (; iter != parts.end(); ++iter) {
+    s << sep << *iter;
+  }
+  return s.str();
+}
+
+template <typename T>
+std::string JoinKeys(T *v, const std::string &sep) {
+  if (!v || v->empty()) return "";
+  std::stringstream s;
+  typename T::const_iterator iter = v->begin();
+  s << iter->first;
+  for (++iter; iter != v->end(); ++iter) {
+    s << sep << iter->first;
+  }
+  return s.str();
+}
+
+template <typename T>
+std::string JoinValues(T *v, const std::string &sep) {
+  if (!v || v->empty()) return "";
+  std::stringstream s;
+  typename T::const_iterator iter = v->begin();
+  s << iter->second;
+  for (++iter; iter != v->end(); ++iter) {
+    s << sep << iter->second;
+  }
+  return s.str();
+}
+
 
 // WARNING: this uses whitespace as defined by the HTML5 spec. If you need
 // a function similar to this but want to trim all types of whitespace, then
@@ -684,14 +959,14 @@ struct ToUnsigned<signed char> {
 template<>
 struct ToUnsigned<wchar_t> {
 #if defined(WCHAR_T_IS_UTF16)
-  typedef unsigned short Unsigned;
+  typedef uint16 Unsigned;
 #elif defined(WCHAR_T_IS_UTF32)
   typedef uint32 Unsigned;
 #endif
 };
 template<>
-struct ToUnsigned<short> {
-  typedef unsigned short Unsigned;
+struct ToUnsigned<int16> {
+  typedef uint16 Unsigned;
 };
 
 #endif  // BASE_STRING_UTIL_H_

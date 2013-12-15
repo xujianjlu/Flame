@@ -1,4 +1,4 @@
-// Copyright (c) 2006-2008 The Chromium Authors. All rights reserved.
+// Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,36 +6,46 @@
 // the low-level platform-specific abstraction to the OS's threading interface.
 // You should instead be using a message-loop driven Thread, see thread.h.
 
-#ifndef BASE_PLATFORM_THREAD_H_
-#define BASE_PLATFORM_THREAD_H_
+#ifndef BASE_THREADING_PLATFORM_THREAD_H_
+#define BASE_THREADING_PLATFORM_THREAD_H_
+#pragma once
 
-#include "base/basictypes.h"
+#include "./basictypes.h"
+#include "./time.h"
+
+#include <pthread.h>
+#include <unistd.h>
+
+namespace base {
 
 // PlatformThreadHandle should not be assumed to be a numeric type, since the
 // standard intends to allow pthread_t to be a structure.  This means you
 // should not initialize it to a value, like 0.  If it's a member variable, the
 // constructor can safely "value initialize" using () in the initializer list.
-#if defined(OS_WIN)
-#include <windows.h>
-typedef DWORD PlatformThreadId;
-typedef void* PlatformThreadHandle;  // HANDLE
-const PlatformThreadHandle kNullThreadHandle = NULL;
-#elif defined(OS_POSIX)
-#include <pthread.h>
 typedef pthread_t PlatformThreadHandle;
 const PlatformThreadHandle kNullThreadHandle = 0;
-#if defined(OS_MACOSX)
-#include <mach/mach.h>
-typedef mach_port_t PlatformThreadId;
-#else  // OS_POSIX && !OS_MACOSX
-#include <unistd.h>
 typedef pid_t PlatformThreadId;
-#endif
-#endif
+
+const PlatformThreadId kInvalidThreadId = 0;
+
+// Valid values for SetThreadPriority()
+enum ThreadPriority{
+  kThreadPriority_Normal,
+  // Suitable for low-latency, glitch-resistant audio.
+  kThreadPriority_RealtimeAudio
+};
 
 // A namespace for low-level thread functions.
 class PlatformThread {
  public:
+  // Implement this interface to run code on a background thread.  Your
+  // ThreadMain method will be called on the newly created thread.
+  class Delegate {
+   public:
+    virtual ~Delegate() {}
+    virtual void ThreadMain() = 0;
+  };
+
   // Gets the current thread id, which may be useful for logging purposes.
   static PlatformThreadId CurrentId();
 
@@ -45,16 +55,16 @@ class PlatformThread {
   // Sleeps for the specified duration (units are milliseconds).
   static void Sleep(int duration_ms);
 
-  // Sets the thread name visible to a debugger.  This has no effect otherwise.
+  // Sleeps for the specified duration.
+  static void Sleep(base::TimeDelta duration);
+
+  // Sets the thread name visible to debuggers/tools. This has no effect
+  // otherwise. This name pointer is not copied internally. Thus, it must stay
+  // valid until the thread ends.
   static void SetName(const char* name);
 
-  // Implement this interface to run code on a background thread.  Your
-  // ThreadMain method will be called on the newly created thread.
-  class Delegate {
-   public:
-    virtual ~Delegate() {}
-    virtual void ThreadMain() = 0;
-  };
+  // Gets the thread name, if previously set by SetName.
+  static const char* GetName();
 
   // Creates a new thread.  The |stack_size| parameter can be 0 to indicate
   // that the default stack size should be used.  Upon success,
@@ -67,6 +77,15 @@ class PlatformThread {
   static bool Create(size_t stack_size, Delegate* delegate,
                      PlatformThreadHandle* thread_handle);
 
+  // CreateWithPriority() does the same thing as Create() except the priority of
+  // the thread is set based on |priority|.  Can be used in place of Create()
+  // followed by SetThreadPriority().  SetThreadPriority() has not been
+  // implemented on the Linux platform yet, this is the only way to get a high
+  // priority thread on Linux.
+  static bool CreateWithPriority(size_t stack_size, Delegate* delegate,
+                                 PlatformThreadHandle* thread_handle,
+                                 ThreadPriority priority);
+
   // CreateNonJoinable() does the same thing as Create() except the thread
   // cannot be Join()'d.  Therefore, it also does not output a
   // PlatformThreadHandle.
@@ -77,8 +96,15 @@ class PlatformThread {
   // |thread_handle|.
   static void Join(PlatformThreadHandle thread_handle);
 
+  // Sets the priority of the thread specified in |handle| to |priority|.
+  // This does not work on Linux, use CreateWithPriority() instead.
+  static void SetThreadPriority(PlatformThreadHandle handle,
+                                ThreadPriority priority);
+
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(PlatformThread);
 };
 
-#endif  // BASE_PLATFORM_THREAD_H_
+}  // namespace base
+
+#endif  // BASE_THREADING_PLATFORM_THREAD_H_

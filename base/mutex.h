@@ -1,3 +1,6 @@
+// Copyright 2010  Inc. All Rights Reserved.
+// Author: quj@.com (Jing Qu)
+
 #ifndef BASE_MUTEX_H_
 #define BASE_MUTEX_H_
 
@@ -12,36 +15,15 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <assert.h>
 
-#include "base/basictypes.h"
-#include "base/logging.h"
-#include "base/time.h"
-
-#include "base/third_party/dynamic_annotations/dynamic_annotations.h"
+#include "./basictypes.h"
+#include "./dynamic_annotations.h"
+#include "./logging.h"
+#include "./time.h"
 
 namespace base {
 
-/// Just a boolean condition. Used by Mutex::LockWhen and similar.
-class Condition {
- public:
-  typedef bool (*func_t)(void*);
-
-  template <typename T>
-  Condition(bool (*func)(T*), T* arg)
-      : func_(reinterpret_cast<func_t>(func)), arg_(arg) {}
-
-  Condition(bool (*func)())
-      : func_(reinterpret_cast<func_t>(func)), arg_(NULL) {}
-
-  bool Eval() { return func_(arg_); }
- private:
-  func_t func_;
-  void *arg_;
-};
-
 class Mutex {
-  friend class CondVar;
  public:
   // This is used for the single-arg constructor
   enum LinkerInitialized { LINKER_INITIALIZED };
@@ -62,110 +44,33 @@ class Mutex {
   inline void Unlock();  // Release a lock acquired via Lock()
   inline bool TryLock(); // If free, Lock() and return true, else return false
 
-  // Note that on systems that don't support read-write locks, these may
-  // be implemented as synonyms to Lock() and Unlock().  So you can use
-  // these for efficiency, but don't use them anyplace where being able
-  // to do shared reads is necessary to avoid deadlock.
-  inline void ReaderLock();   // Block until free or shared then acquire a share
-  inline void ReaderUnlock(); // Release a read share of this Mutex
-  inline void WriterLock() { Lock(); }     // Acquire an exclusive lock
-  inline void WriterUnlock() { Unlock(); } // Release a lock from WriterLock()
-
-  inline void LockWhen(Condition cond)            { Lock(); WaitLoop(cond); }
-  inline void ReaderLockWhen(Condition cond)      { Lock(); WaitLoop(cond); }
-  inline void Await(Condition cond)               { WaitLoop(cond); }
-
-  bool ReaderLockWhenWithTimeout(Condition cond, int millis)
-    { Lock(); return WaitLoopWithTimeout(cond, millis); }
-  bool LockWhenWithTimeout(Condition cond, int millis)
-    { Lock(); return WaitLoopWithTimeout(cond, millis); }
-  bool AwaitWithTimeout(Condition cond, int millis)
-    { return WaitLoopWithTimeout(cond, millis); }
-
  private:
-    void WaitLoop(Condition cond) {
-    signal_at_unlock_ = true;
-    while(cond.Eval() == false) {
-      pthread_cond_wait(&cv_, &mu_);
-    }
-    ANNOTATE_HAPPENS_AFTER(this);
-  }
-
-  bool WaitLoopWithTimeout(Condition cond, int millis) {
-    struct timeval now;
-    struct timespec timeout;
-    int retcode = 0;
-    gettimeofday(&now, NULL);
-    timeval2timespec(&now, &timeout, millis);
-
-    signal_at_unlock_ = true;
-
-    while (cond.Eval() == false && retcode == 0) {
-      retcode = pthread_cond_timedwait(&cv_, &mu_, &timeout);
-    }
-    if(retcode == 0) {
-      ANNOTATE_HAPPENS_AFTER(this);
-    }
-    return cond.Eval();
-  }
-
+  friend class CondVar;
   pthread_mutex_t mu_;
-
-  pthread_cond_t  cv_;
-  bool signal_at_unlock_;  // Set to true if Wait was called.
-
-  // We want to make sure that the compiler sets is_safe_ to true only
-  // when we tell it to, and never makes assumptions is_safe_ is
-  // always true.  volatile is the most reliable way to do that.
-  volatile bool is_safe_;
-  // This indicates which constructor was called.
   bool destroy_;
-
-  inline void SetIsSafe() { is_safe_ = true; }
-
   DISALLOW_COPY_AND_ASSIGN(Mutex);
 };
-
-#define SAFE_PTHREAD(fncall)  do {   /* run fncall if is_safe_ is true */  \
-  if (is_safe_ && fncall(&mu_) != 0) abort();                           \
+#define SAFE_PTHREAD(fncall) do {                          \
+  if (fncall(&mu_) != 0) abort();                          \
 } while (0)
-
 Mutex::Mutex() : destroy_(true) {
-  SetIsSafe();
-  if (is_safe_) {
-    CHECK(0 == pthread_mutex_init(&mu_, NULL));
-    CHECK(0 == pthread_cond_init(&cv_, NULL));
-  }
-  signal_at_unlock_ = false;
+  CHECK(0 == pthread_mutex_init(&mu_, NULL));
 }
 Mutex::Mutex(Mutex::LinkerInitialized) : destroy_(false) {
-  SetIsSafe();
-  if (is_safe_) {
-    CHECK(0 == pthread_mutex_init(&mu_, NULL));
-    CHECK(0 == pthread_cond_init(&cv_, NULL));
-  }
-  signal_at_unlock_ = false;
+  CHECK(0 == pthread_mutex_init(&mu_, NULL));
 }
 Mutex::~Mutex() {
-  if (destroy_) {
+  if (destroy_)
     SAFE_PTHREAD(pthread_mutex_destroy);
-    CHECK(0 == pthread_cond_destroy(&cv_));
-  }
 }
 void Mutex::Lock() {
   SAFE_PTHREAD(pthread_mutex_lock);
 }
 void Mutex::Unlock() {
   ANNOTATE_HAPPENS_BEFORE(this);
-  if (signal_at_unlock_) {
-    CHECK(0 == pthread_cond_signal(&cv_));
-  }
   SAFE_PTHREAD(pthread_mutex_unlock);
 }
-bool Mutex::TryLock()      { return is_safe_ ?
-                             pthread_mutex_trylock(&mu_) == 0 : true; }
-void Mutex::ReaderLock()   { Lock(); }
-void Mutex::ReaderUnlock() { Unlock(); }
+bool Mutex::TryLock()      { return pthread_mutex_trylock(&mu_) == 0; }
 #undef SAFE_PTHREAD
 
 // --------------------------------------------------------------------------
@@ -183,27 +88,81 @@ class MutexLock {
   void operator=(const MutexLock&);
 };
 
+// Read-Write mutex
+class RwMutex {
+ public:
+  // This is used for the single-arg constructor
+  enum LinkerInitialized { LINKER_INITIALIZED };
+
+  // Create a Mutex that is not held by anybody.  This constructor is
+  // typically used for Mutexes allocated on the heap or the stack.
+  inline RwMutex();
+  // This constructor should be used for global, static Mutex objects.
+  // It inhibits work being done by the destructor, which makes it
+  // safer for code that tries to acqiure this mutex in their global
+  // destructor.
+  inline RwMutex(LinkerInitialized);
+
+  inline ~RwMutex();
+
+  // Read / Write lock should not be used together with Lock / Unlock
+  inline void ReaderLock();  // Block until free or shared then acquire a share
+  inline void ReaderUnlock();  // Release a read share of this Mutex
+  inline void WriterLock();  // Acquire an exclusive lock
+  inline void WriterUnlock();  // Release a lock from WriterLock()
+ private:
+  inline void Unlock();
+  pthread_rwlock_t mu_;
+  bool destroy_;
+  DISALLOW_COPY_AND_ASSIGN(RwMutex);
+};
+#define SAFE_PTHREAD(fncall) do {                          \
+  if (fncall(&mu_) != 0) abort();                          \
+} while (0)
+RwMutex::RwMutex() : destroy_(true) {
+  CHECK(0 == pthread_rwlock_init(&mu_, NULL));
+}
+RwMutex::RwMutex(RwMutex::LinkerInitialized) : destroy_(false) {
+  CHECK(0 == pthread_rwlock_init(&mu_, NULL));
+}
+RwMutex::~RwMutex() {
+  if (destroy_)
+    SAFE_PTHREAD(pthread_rwlock_destroy);
+}
+void RwMutex::Unlock() {
+  SAFE_PTHREAD(pthread_rwlock_unlock);
+}
+void RwMutex::ReaderLock() {
+  SAFE_PTHREAD(pthread_rwlock_rdlock);
+}
+void RwMutex::ReaderUnlock() {
+  Unlock();
+}
+void RwMutex::WriterLock() {
+  SAFE_PTHREAD(pthread_rwlock_wrlock);
+}
+void RwMutex::WriterUnlock() {
+  Unlock();
+}
+#undef SAFE_PTHREAD
+
 // ReaderMutexLock and WriterMutexLock do the same, for rwlocks
 class ReaderMutexLock {
  public:
-  explicit ReaderMutexLock(Mutex *mu) : mu_(mu) { mu_->ReaderLock(); }
+  explicit ReaderMutexLock(RwMutex *mu) : mu_(mu) { mu_->ReaderLock(); }
   ~ReaderMutexLock() { mu_->ReaderUnlock(); }
  private:
-  Mutex * const mu_;
-  // Disallow "evil" constructors
-  ReaderMutexLock(const ReaderMutexLock&);
-  void operator=(const ReaderMutexLock&);
+  RwMutex * const mu_;
+  DISALLOW_COPY_AND_ASSIGN(ReaderMutexLock);
 };
 
 class WriterMutexLock {
  public:
-  explicit WriterMutexLock(Mutex *mu) : mu_(mu) { mu_->WriterLock(); }
+  explicit WriterMutexLock(RwMutex *mu) : mu_(mu) { mu_->WriterLock(); }
   ~WriterMutexLock() { mu_->WriterUnlock(); }
  private:
-  Mutex * const mu_;
-  // Disallow "evil" constructors
-  WriterMutexLock(const WriterMutexLock&);
-  void operator=(const WriterMutexLock&);
+  RwMutex * const mu_;
+  DISALLOW_COPY_AND_ASSIGN(WriterMutexLock);
 };
 
 // Catch bug where variable name is omitted, e.g. MutexLock (&mu);
@@ -211,25 +170,9 @@ class WriterMutexLock {
 #define ReaderMutexLock(x) COMPILE_ASSERT(0, rmutex_lock_decl_missing_var_name)
 #define WriterMutexLock(x) COMPILE_ASSERT(0, wmutex_lock_decl_missing_var_name)
 
-class BlockingCounter {
- public:
-  explicit BlockingCounter(int initial_count) :
-    count_(initial_count) {}
-  bool DecrementCount() {
-    MutexLock lock(&mu_);
-    count_--;
-    return count_ == 0;
-  }
-  void Wait() {
-    mu_.LockWhen(Condition(&IsZero, &count_));
-    mu_.Unlock();
-  }
- private:
-  static bool IsZero(int *arg) { return *arg == 0; }
-  Mutex mu_;
-  int count_;
-};
-
+// A faster lock than mutex.
+// SpinLock use less CPU instructions than Mutex, but may be less efficient if
+// the lock area is huge and the race condition is frequent.
 class SpinLock {
  public:
   SpinLock() {
@@ -265,6 +208,29 @@ class CondVar {
   void SignalAll() { CHECK(0 == pthread_cond_broadcast(&cv_)); }
  private:
   pthread_cond_t cv_;
+};
+
+class BlockingCounter {
+ public:
+  explicit BlockingCounter(int initial_count) :
+    count_(initial_count) {}
+  bool DecrementCount() {
+    MutexLock lock(&mu_);
+    count_--;
+    if (count_ == 0)
+      cond_.SignalAll();
+    return count_ == 0;
+  }
+  void Wait() {
+    MutexLock lock(&mu_);
+    while(count_ != 0) {
+      cond_.Wait(&mu_);
+    }
+  }
+ private:
+  Mutex mu_;
+  CondVar cond_;
+  int count_;
 };
 
 }  // namespace base

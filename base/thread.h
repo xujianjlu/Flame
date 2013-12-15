@@ -1,27 +1,32 @@
-// Copyright 2010 . All Rights Reserved.
-// Author: kingqj@gmail.com (Jing Qu)
+// Copyright 2010  Inc. All Rights Reserved.
+// Author: quj@.com (Jing Qu)
 
 #ifndef BASE_THREAD_H_
 #define BASE_THREAD_H_
 
-#include <dirent.h>
-#include <errno.h>
 #include <pthread.h>
-#include <semaphore.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <sys/mman.h>  // mmap
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
-#include <queue>
-
-#include "base/mutex.h"
+#include "base/basictypes.h"
 
 namespace base {
 
+// Simple warper to pthread.
+// Sample useage:
+//
+// class Mythread : public base::Thread {
+//  public:
+//   Mythread() { }
+//  protected:
+//   virtual void Run() {
+//     LOG(INFO) << "int the thread";
+//   }
+// };
+//
+// ...
+//
+// Mythread mythread;
+// mythread.Start();
+//
 class Thread {
  public:
   Thread(bool joinable = false) : started_(false), joinable_(joinable) {}
@@ -52,6 +57,9 @@ class Thread {
   pthread_t tid_;
   bool started_;
   bool joinable_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(Thread);
 };
 
 }  // namespace base

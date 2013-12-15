@@ -40,11 +40,12 @@
 // implementation of the scoped_ptr class, and its closely-related brethren,
 // scoped_array, scoped_ptr_malloc.
 
+#include <algorithm>  // for swap
 #include <assert.h>
 #include <stdlib.h>
 #include <cstddef>
 
-#include "base/compiler_specific.h"
+#include "base/basictypes.h"
 
 // A scoped_ptr<T> is like a T*, except that the destructor of scoped_ptr<T>
 // automatically deletes the pointer it holds (if any).

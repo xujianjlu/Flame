@@ -21,18 +21,6 @@
 #ifndef BASE_HASH_TABLES_H_
 #define BASE_HASH_TABLES_H_
 
-#include "build_config.h"
-
-#include "base/string16.h"
-
-#if defined(COMPILER_MSVC)
-#include <hash_map>
-#include <hash_set>
-namespace base {
-using stdext::hash_map;
-using stdext::hash_set;
-}
-#elif defined(COMPILER_GCC)
 // This is a hack to disable the gcc 4.4 warning about hash_map and hash_set
 // being deprecated.  We can get rid of this when we upgrade to VS2008 and we
 // can use <tr1/unordered_map> and <tr1/unordered_set>.
@@ -49,6 +37,9 @@ using stdext::hash_set;
 #define __DEPRECATED CHROME_OLD__DEPRECATED
 #undef CHROME_OLD__DEPRECATED
 #endif
+
+#include "./port.h"
+#include "./string16.h"
 
 namespace base {
 using __gnu_cxx::hash_map;
@@ -104,7 +95,5 @@ DEFINE_STRING_HASH(string16);
 #undef DEFINE_STRING_HASH
 
 }  // namespace __gnu_cxx
-
-#endif  // COMPILER
 
 #endif  // BASE_HASH_TABLES_H_

@@ -1,16 +1,15 @@
-// Copyright 2010 . All Rights Reserved.
-// Author: kingqj@gmail.com (Jing Qu)
+// Copyright 2010  Inc. All Rights Reserved.
+// Author: quj@.com (Jing Qu)
 
-#include "base/basictypes.h"
 #include "base/thread_pool.h"
 
 namespace base {
 
 ThreadPool::ThreadPool(int n_threads) : queue_(n_threads) {
-    for (int i = 0; i < n_threads; i++) {
-      WorkerThread *thread = new WorkerThread(&ThreadPool::Worker, this);
-      workers_.push_back(thread);
-    }
+  for (int i = 0; i < n_threads; i++) {
+    WorkerThread *thread = new WorkerThread(&ThreadPool::Worker, this);
+    workers_.push_back(thread);
+  }
 }
 
 ThreadPool::~ThreadPool() {
@@ -32,12 +31,12 @@ void ThreadPool::StartWorkers() {
 void* ThreadPool::Worker(void *p) {
   ThreadPool *pool = reinterpret_cast<ThreadPool*>(p);
   while (true) {
-    Closure *closure = reinterpret_cast<Closure*>(pool->queue_.Get());
-    if(closure == NULL) {
+    Closure *closure = pool->queue_.Get();
+    if (closure == NULL) {
       return NULL;
     }
-    closure->Execute();
+    closure->Run();
   }
 }
 
-}
+}  // namespace base

@@ -5,16 +5,13 @@
 #ifndef BASE_BASICTYPES_H_
 #define BASE_BASICTYPES_H_
 
+#include <assert.h>
 #include <limits.h>         // So we can set the bounds of our types
 #include <stddef.h>         // For size_t
+#include <stdint.h>         // For intptr_t.
 #include <string.h>         // for memcpy
 
-#include "base/port.h"    // Types that only need exist on certain systems
-
-#ifndef COMPILER_MSVC
-// stdint.h is part of C99 but MSVC doesn't have it.
-#include <stdint.h>         // For intptr_t.
-#endif
+#include "./port.h"    // Types that only need exist on certain systems
 
 typedef signed char         schar;
 typedef signed char         int8;
@@ -28,10 +25,13 @@ typedef int                 int32;
 
 // The NSPR system headers define 64-bit as |long| when possible.  In order to
 // not have typedef mismatches, we do the same on LP64.
+// see http://sns.linuxpk.com/thread-41867-1-1.html
 #if __LP64__
 typedef long                int64;
+#define YRd64 "ld"
 #else
 typedef long long           int64;
+#define YRd64 "lld"
 #endif
 
 // NOTE: unsigned types are DANGEROUS in loops and other arithmetical
@@ -52,8 +52,10 @@ typedef unsigned int       uint32;
 // See the comment above about NSPR and 64-bit.
 #if __LP64__
 typedef unsigned long uint64;
+#define YRu64 "lu"
 #else
 typedef unsigned long long uint64;
+#define YRu64 "llu"
 #endif
 
 // A type to represent a Unicode code-point value. As of Unicode 4.0,
@@ -81,13 +83,6 @@ const  int64 kint64max  = (( int64) GG_LONGLONG(0x7FFFFFFFFFFFFFFF));
   TypeName(const TypeName&);               \
   void operator=(const TypeName&)
 
-// An older, deprecated, politically incorrect name for the above.
-// NOTE: The usage of this macro was baned from our code base, but some
-// third_party libraries are yet using it.
-// TODO(tfarina): Figure out how to fix the usage of this macro in the
-// third_party libraries and get rid of it.
-#define DISALLOW_EVIL_CONSTRUCTORS(TypeName) DISALLOW_COPY_AND_ASSIGN(TypeName)
-
 // A macro to disallow all the implicit constructors, namely the
 // default constructor, copy constructor and operator= functions.
 //
@@ -97,6 +92,10 @@ const  int64 kint64max  = (( int64) GG_LONGLONG(0x7FFFFFFFFFFFFFFF));
 #define DISALLOW_IMPLICIT_CONSTRUCTORS(TypeName) \
   TypeName();                                    \
   DISALLOW_COPY_AND_ASSIGN(TypeName)
+
+// A macro to mark the function or variable or types to be deprecated.
+// The code depends on deprecated code would cuase compile warnings.
+#define YR_DEPRECATED __attribute__((deprecated))
 
 // The arraysize(arr) macro returns the # of elements in an array arr.
 // The expression is a compile-time constant, and therefore can be
@@ -112,8 +111,29 @@ const  int64 kint64max  = (( int64) GG_LONGLONG(0x7FFFFFFFFFFFFFFF));
 // This template function declaration is used in defining arraysize.
 // Note that the function doesn't need an implementation, as we only
 // use its type.
+//
+// This is interpreted at http://hi.baidu.com/cntrump/item/18200afee5f7abed1b111fae
+// int f(); // function declare without definition
+// std::cout << sizeof(f());  // ok
+//
+// int a[100]
+// a  -- int *
+// &a -- int (*) [100]
+//
+// int * ptr = new int[100];
+// int a[100];
+// int (& b1)[100] = a;    // ok, reference
+// int * const & p = a;    // ok, const reference, due to a is const
+// int *& p1 = ptr;        // ok, reference
+// int (* p2) [100] = &a;  // ok
+//
+// int (& b2)[100] = ptr;  // wrong
+// int *& p3 = ptr;        // ok, reference
+//
 template <typename T, size_t N>
 char (&ArraySizeHelper(T (&array)[N]))[N];
+// declare a function wihch need input type is a refercence of T (&array) [N]
+// output type is char [N]
 
 // That gcc wants both of these prototypes seems mysterious. VC, for
 // its part, can't decide which to use (another mystery). Matching of
@@ -188,6 +208,44 @@ template<typename To, typename From>
 inline To implicit_cast(From const &f) {
   return f;
 }
+
+// When you upcast (that is, cast a pointer from type Foo to type
+// SuperclassOfFoo), it's fine to use implicit_cast<>, since upcasts
+// always succeed.  When you downcast (that is, cast a pointer from
+// type Foo to type SubclassOfFoo), static_cast<> isn't safe, because
+// how do you know the pointer is really of type SubclassOfFoo?  It
+// could be a bare Foo, or of type DifferentSubclassOfFoo.  Thus,
+// when you downcast, you should use this macro.  In debug mode, we
+// use dynamic_cast<> to double-check the downcast is legal (we die
+// if it's not).  In normal mode, we do the efficient static_cast<>
+// instead.  Thus, it's important to test in debug mode to make sure
+// the cast is legal!
+//    This is the only place in the code we should use dynamic_cast<>.
+// In particular, you SHOULDN'T be using dynamic_cast<> in order to
+// do RTTI (eg code like this:
+//    if (dynamic_cast<Subclass1>(foo)) HandleASubclass1Object(foo);
+//    if (dynamic_cast<Subclass2>(foo)) HandleASubclass2Object(foo);
+// You should design the code some other way not to need this.
+template<typename To, typename From>     // use like this: down_cast<T*>(foo);
+inline To down_cast(From* f) {                   // so we only accept pointers
+  // Ensures that To is a sub-type of From *.  This test is here only
+  // for compile-time type checking, and has no overhead in an
+  // optimized build at run-time, as it will be optimized away
+  // completely.
+  if (false) {
+    implicit_cast<From*, To>(0);
+  }
+
+#if !defined(NDEBUG)
+  if (f != NULL)
+    assert(dynamic_cast<To>(f) != NULL);  // RTTI: debug mode only!
+#endif
+  return static_cast<To>(f);
+}
+
+// When YR_FOR_PARTNER is set, we disable mini-frontend, debug-level and
+// log-level.
+#define YR_FOR_PARTNER false
 
 // The COMPILE_ASSERT macro can be used to verify that a compile time
 // expression is true. For example, you could use it to verify the
@@ -360,5 +418,21 @@ namespace base {
 enum LinkerInitialized { LINKER_INITIALIZED };
 }  // base
 
+class GoogleInitializer {
+ public:
+  typedef void (*void_function)(void);
+  GoogleInitializer(const char* name, void_function f) {
+    f();
+  }
+};
+
+// Register a module that could be called before the main funcation but later
+// than global variables initilzation flags be set.
+#define REGISTER_MODULE_INITIALIZER(name, body)                 \
+  namespace {                                                   \
+    static void google_init_module_##name () { body; }          \
+    GoogleInitializer google_initializer_module_##name(#name,   \
+            google_init_module_##name);                         \
+  }
 
 #endif  // BASE_BASICTYPES_H_

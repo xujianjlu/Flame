@@ -12,11 +12,7 @@
 #include <iosfwd>
 #include <vector>
 
-#include "base/basictypes.h"
-
-#if defined(OS_WIN)
-struct _EXCEPTION_POINTERS;
-#endif
+#include "./basictypes.h"
 
 // A stacktrace can be helpful in debugging. For example, you can include a
 // stacktrace member in a object (probably around #ifndef NDEBUG) so that you
@@ -29,15 +25,10 @@ class StackTrace {
   // Note that the default copy constructor and assignment constructors
   // are OK.
 
-#if defined(OS_WIN)
-  // Creates a stacktrace for an exception.
-  // Note: this function will throw an import not found (StackWalk64) exception
-  // on system without dbghelp 5.1.
-  StackTrace(_EXCEPTION_POINTERS* exception_pointers);
-#endif
   // Gets an array of instruction pointer values.
   //   count: (output) the number of elements in the returned array
   const void *const *Addresses(size_t* count);
+
   // Prints a backtrace to stderr
   void PrintBacktrace();
 
@@ -73,14 +64,6 @@ class DebugUtil {
 
   // Break into the debugger, assumes a debugger is present.
   static void BreakDebugger();
-
-#if defined(OS_MACOSX)
-  // On Mac OS X, it can take a really long time for the OS crash handler to
-  // process a Chrome crash when debugging symbols are available.  This
-  // translates into a long wait until the process actually dies.  This call
-  // disables Apple Crash Reporter entirely.
-  static void DisableOSCrashDumps();
-#endif  // defined(OS_MACOSX)
 
   // This should be used only in test code.
   static void SuppressDialogs() {
