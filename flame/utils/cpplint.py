@@ -2392,7 +2392,7 @@ def CheckLanguage(filename, clean_lines, linenum, file_extension, include_state,
 
     # We allow non-const references in a few standard places, like functions
     # called "swap()" or iostream operators like "<<" or ">>".
-    # dahaili@yunrang.com: also allow interface for thrift that using the first
+    # dahaili@.com: also allow interface for thrift that using the first
     # non-const parameter as return value.
     if (not Search(r'(swap|Swap|operator[<>][<>])\s*\(\s*(?:[\w:]|<.*>)+\s*&',
                    fnline) and
