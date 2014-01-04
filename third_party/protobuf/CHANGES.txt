@@ -1,2 +1,0 @@
-* 用 GLOG 替换了 protobuf 自己定义的 GOOGLE_LOG
-
