@@ -103,9 +103,9 @@ BUILD文件:
 	1. enable opt model.
 	2. enable glog and gflags.
 	3. import base lib.
+	4. enable protobuf construction.
+	5. enable third party libs.
 
 ####Todo
-	1. enable third party libs.
-	2. enable execute built unittest binary automatic.
-	3. enable protobuf construction.
+	1. enable execute built unittest binary automatic.
 
