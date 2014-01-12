@@ -65,18 +65,17 @@ class ProtoBuilder(LanguageBuilder):
             'ProtoPyLibrary' : proto_py_builder}
 
   def GenerateEnv(self, env):
-    #env['PROTO']       = Path.GetAbsPath(Flags.PROTO_BIN)
     env['PROTO']       = Flags.PROTO_BIN
     env['PROTOCFLAGS'] = SCons.Util.CLVar('')
     if os.path.exists(Path.GetGlobalDir()):
       env['PROTOINCLUDE'] = ('-I%s -I%s -I%s' %
                              (Path.GetBaseDir(),
                               Path.GetGlobalDir(),
-                              Path.GetAbsPath('third_party/protobuf/include')))
+                              Path.GetAbsPath('third_party/protobuf/')))
     else:
       env['PROTOINCLUDE'] = ('-I%s -I%s' %
                              (Path.GetBaseDir(),
-                              Path.GetAbsPath('third_party/protobuf/include')))
+                              Path.GetAbsPath('third_party/protobuf/')))
     env['PROTOCOUTDIR'] = Path.GetProtoOutPath()
     env['PROTOCCOM'] = ('$PROTO $PROTOCFLAGS ${SOURCE.abspath} '
                       '--cpp_out=$PROTOCCPPOUTFLAGS$PROTOCOUTDIR $PROTOINCLUDE')

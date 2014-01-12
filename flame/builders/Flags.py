@@ -16,13 +16,8 @@ CPP_PPROF_LIB_PATH = 'libs/third_party/pprof/libtcmalloc_and_profiler.a'
 #DISTCC_HOSTS = 'flame/distcc/distcc_hosts.txt'
 #DISTCC_BIN = 'flame/distcc/distcc'
 
-# Since currently thrift supposes all php related files under the same folder,
-# we hard-code the static files directory here and will copy them to the
-# scons out folder at deploy time
-PY_THRIFT_DIR = 'third_party/thrift/py/src/'
-
-#PROTO_BIN = 'third_party/protobuf/bin/protoc'
-PROTO_BIN = 'libs/proto/bin/protoc'
+#PROTO_BIN = 'libs/proto/bin/protoc'
+PROTO_BIN = 'third_party/protobuf/bin/protoc'
 PROTO_OUT = 'proto-out'
 PROTO_INC = 'third_party/protobuf/'
 PROTO_PY_INC = 'third_party/protobuf/python'
@@ -35,6 +30,11 @@ BUILD_FILE_PREFIX = '//%s' % BUILD_FILE_PATH
 THRIFT_BIN = 'third_party/thrift/bin/thrift'
 THRIFT_OUT = 'thrift-out'
 THRIFT_INC = 'third_party/thrift/include'
+
+# Since currently thrift supposes all php related files under the same folder,
+# we hard-code the static files directory here and will copy them to the
+# scons out folder at deploy time
+PY_THRIFT_DIR = 'third_party/thrift/py/src/'
 
 CUDA_BIN_DIR = 'third_party/cuda/bin/'
 CUDA_NVCC_BIN = 'third_party/cuda/bin/nvcc'

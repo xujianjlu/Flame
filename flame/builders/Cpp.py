@@ -97,7 +97,7 @@ def GetCppInclude(obj):
   if obj.has_proto_dep:
     result.append(Path.GetProtoOutPath())
     # TODO(xujian): check this
-    #result.append(Path.GetAbsPath(Flags.PROTO_INC))
+    result.append(Path.GetAbsPath(Flags.PROTO_INC))
   # TODO(xujian): check following language
   if obj.has_cuda_dep:
     result.append(Flags.CUDA_INC)
@@ -348,7 +348,7 @@ class CppBuilder(LanguageBuilder):
     if obj.has_proto_dep:
       libs += ['protobuf']
       # xujian
-      #path.append(Path.GetAbsPath('libs/third_party/protobuf'))
+      path.append(Path.GetAbsPath('third_party/protobuf/libs'))
 
     # for gtest
     if obj.build_type_ == 'cc_test':
@@ -399,6 +399,7 @@ class CppBuilder(LanguageBuilder):
                            LINKFLAGS = link_flags,
                            CCFLAGS = cc_flags,
                            CXX = CXX_value)
+      
       if (obj.build_type_ == 'cc_test' and
           obj.name_ in self.build_manager_.GetTestTargets()):
         heapcheck_str = 'on'

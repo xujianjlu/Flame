@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <iostream>
 
-#include "test/test_fun.h"
+#include "examples/test_fun.h"
 
 
 int main(int argc, char **argv) {

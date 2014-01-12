@@ -24,3 +24,11 @@ cc_library(name = 'test_fun',
            srcs = ['test_fun.cc'],
            deps = []
           )
+
+cc_binary(name = 'test_proto_cpp',
+          srcs = ['test_proto.cc'
+                 ],
+          deps = ['//base:base',
+                  '//examples/proto:test_proto'
+                 ]
+             )
