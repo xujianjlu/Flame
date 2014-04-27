@@ -101,11 +101,11 @@ BUILD文件:
 
 
 ####Todo
-- [x]	1. enable opt model.
-- [x]	2. enable glog and gflags.
-- [x]	3. import base lib.
-- [x]	4. enable protobuf construction.
-- [x]	5. enable third party libs.
-- [ ]	6. enable execute built unittest binary automatic.
-- [ ]   7. enable thrift.
+- [x] enable opt model.
+- [x] enable glog and gflags.
+- [x] import base lib.
+- [x] enable protobuf construction.
+- [x] enable third party libs.
+- [ ] enable execute built unittest binary automatic.
+- [ ] enable thrift.
 
