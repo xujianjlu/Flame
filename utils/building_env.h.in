@@ -1,0 +1,24 @@
+// Copyright (c) 2018 Tencent Inc.
+// All rights reserved.
+//
+// Authors: JianXu <jasonjxu@tencent.com>
+// Date: 2018/06/13
+
+#ifndef UTIL_GLOBAL_INIT_BUILDING_ENV_H_
+#define UTIL_GLOBAL_INIT_BUILDING_ENV_H_
+
+namespace global_init {
+
+#define BUILD_COMPILER                "BD_COM"
+#define BUILD_HOST                    "BD_HOST"
+#define BUILD_MODE                    "BD_MODE"
+#define BUILD_PLATFORM                "BD_PLATFORM"
+#define BUILD_SVN_BASE                "BD_SVN_BASE"
+#define BUILD_SVN_REV                 "BD_SVN_REV"
+#define BUILD_TARGET                  "BD_TARGET"
+#define BUILD_TIME                    "BD_TIME"
+#define BUILD_USERNAME                "BD_USERNAME"
+
+}  // namespace global_init
+
+#endif  // UTIL_GLOBAL_INIT_BUILDING_ENV_H_
